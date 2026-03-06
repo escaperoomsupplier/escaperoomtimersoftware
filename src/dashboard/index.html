@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Escape Room Control</title>
   <link rel="stylesheet" href="dashboard.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=SF+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
 </head>
 <body>
 
@@ -83,7 +82,7 @@
             <p class="subtitle">Select a room to start a session</p>
           </div>
           <button class="btn btn-primary" id="btnNewRoom">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
             New Room
           </button>
         </div>
@@ -155,6 +154,7 @@
               <input type="text" id="setupFailMsg" value="Time is up! You are trapped!">
             </div>
           </div>
+
           <!-- Theme Customization -->
           <div class="section-divider"></div>
           <div class="card-header">
@@ -200,9 +200,9 @@
             </div>
           </div>
           <div class="form-group">
-            <label for="setupBgMedia">Background Image/Video (path in assets/backgrounds/)</label>
+            <label for="setupBgMedia">Background Image/Video</label>
             <input type="text" id="setupBgMedia" placeholder="e.g. space.jpg or loop.mp4">
-            <p class="field-hint" style="margin-top:4px">Leave empty for default dark theme. Supports .jpg, .png, .mp4, .webm</p>
+            <p class="field-hint" style="margin-top:6px">Path in assets/backgrounds/. Leave empty for default dark theme. Supports .jpg, .png, .mp4, .webm</p>
           </div>
 
           <!-- Quick Actions -->
@@ -210,7 +210,7 @@
           <div class="card-header">
             <h3>Quick Actions</h3>
             <button class="btn btn-ghost btn-sm" id="btnAddQuickAction">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
               Add Action
             </button>
           </div>
@@ -235,7 +235,7 @@
           <div class="card-header">
             <h3>Puzzle Controllers (UUPC)</h3>
             <button class="btn btn-ghost btn-sm" id="btnAddUupc">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
               Add Controller
             </button>
           </div>
@@ -259,7 +259,7 @@
           <div class="card-header">
             <h3>Scheduled Events</h3>
             <button class="btn btn-ghost btn-sm" id="btnAddEvent">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
               Add Event
             </button>
           </div>
@@ -362,7 +362,7 @@
                 End — Fail
               </button>
             </div>
-            <div class="card-header" style="margin-top:16px">
+            <div class="card-header" style="margin-top:20px">
               <h3>Messages</h3>
             </div>
             <div class="actions-stack">
@@ -371,7 +371,7 @@
               <button class="btn btn-secondary btn-block btn-sm" id="btnMsgDescription">Show Description</button>
               <button class="btn btn-ghost btn-block btn-sm" id="btnMsgClear">Clear Message</button>
             </div>
-            <div class="card-header" style="margin-top:16px">
+            <div class="card-header" style="margin-top:20px">
               <h3>Quick Actions</h3>
             </div>
             <div id="quickActionsPanel" class="quick-actions"></div>
@@ -400,7 +400,7 @@
               </button>
               <button class="btn btn-ghost btn-sm" id="btnMusicStop">Stop</button>
             </div>
-            <div class="card-header" style="margin-top:16px">
+            <div class="card-header" style="margin-top:20px">
               <h3>Alert Tones</h3>
             </div>
             <div id="alertTonesPanel" class="alert-tones"></div>
