@@ -12,6 +12,12 @@ let server;
 let io;
 let roomManager;
 
+// Resolve paths for both dev and packaged app
+const isPackaged = app.isPackaged;
+const appRoot = isPackaged ? process.resourcesPath : __dirname;
+const dataPath = path.join(appRoot, 'data');
+const assetsPath = path.join(isPackaged ? appRoot : __dirname, 'assets');
+
 // --- Express + Socket.IO Server ---
 
 function startServer() {
@@ -22,9 +28,9 @@ function startServer() {
   // Serve timer display
   expressApp.use('/room', express.static(path.join(__dirname, 'src', 'timer')));
   // Serve assets (sounds, fonts, backgrounds)
-  expressApp.use('/assets', express.static(path.join(__dirname, 'assets')));
+  expressApp.use('/assets', express.static(assetsPath));
   // Serve room data files (hints media, sounds, etc.)
-  expressApp.use('/data', express.static(path.join(__dirname, 'data')));
+  expressApp.use('/data', express.static(dataPath));
 
   // Socket.IO connection handling
   io.on('connection', (socket) => {
@@ -145,7 +151,7 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: 'Escape Room Control — LCARS',
+    title: 'Escape Room Control',
     backgroundColor: '#000000',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -168,7 +174,7 @@ function createWindow() {
 // --- App lifecycle ---
 
 app.whenReady().then(() => {
-  roomManager = new RoomManager(path.join(__dirname, 'data', 'rooms'));
+  roomManager = new RoomManager(path.join(dataPath, 'rooms'));
   startServer();
   setupIPC();
   createWindow();
