@@ -2,8 +2,9 @@ const fs = require('fs');
 const path = require('path');
 
 class RoomManager {
-  constructor(roomsDir) {
+  constructor(roomsDir, assetsDir) {
     this.roomsDir = roomsDir;
+    this.assetsDir = assetsDir || path.join(roomsDir, '..', '..', 'assets');
     if (!fs.existsSync(roomsDir)) {
       fs.mkdirSync(roomsDir, { recursive: true });
     }
@@ -75,7 +76,17 @@ class RoomManager {
       bgMedia: roomData.bgMedia || '',
       scheduledEvents: roomData.scheduledEvents || [],
       quickActions: roomData.quickActions || [],
-      uupcControllers: roomData.uupcControllers || []
+      uupcControllers: roomData.uupcControllers || [],
+      timerFontSize: roomData.timerFontSize || '180px',
+      timerBorder: roomData.timerBorder || { style: 'none', color: '#ffffff', radius: '0', shadow: 'none' },
+      fontUrl: roomData.fontUrl || '',
+      idleScreen: roomData.idleScreen !== undefined ? roomData.idleScreen : true,
+      getReadyCountdown: roomData.getReadyCountdown !== undefined ? roomData.getReadyCountdown : true,
+      typingEffect: roomData.typingEffect !== undefined ? roomData.typingEffect : true,
+      displayLayout: roomData.displayLayout || 'center',
+      hintSchedule: roomData.hintSchedule || [],
+      uupcPortNames: roomData.uupcPortNames || {},
+      uupcAutoActions: roomData.uupcAutoActions || []
     };
 
     fs.writeFileSync(
@@ -169,8 +180,25 @@ class RoomManager {
       }
     }
 
-    // Sort by name
-    hints.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    // Sort by order.json if it exists, otherwise alphabetically
+    const orderFile = path.join(hintsDir, 'order.json');
+    if (fs.existsSync(orderFile)) {
+      try {
+        const order = JSON.parse(fs.readFileSync(orderFile, 'utf-8'));
+        hints.sort((a, b) => {
+          const idxA = order.indexOf(a.name);
+          const idxB = order.indexOf(b.name);
+          // Items not in order.json go to the end
+          const posA = idxA === -1 ? order.length : idxA;
+          const posB = idxB === -1 ? order.length : idxB;
+          return posA - posB;
+        });
+      } catch (e) {
+        hints.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      }
+    } else {
+      hints.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    }
 
     return hints;
   }
@@ -243,6 +271,166 @@ class RoomManager {
     return sounds;
   }
 
+  // --- Hint file operations ---
+
+  saveHintFile(roomName, language, fileName, sourceFilePath) {
+    const hintsDir = path.join(this.roomsDir, roomName, 'hints', language || 'English');
+    if (!fs.existsSync(hintsDir)) {
+      fs.mkdirSync(hintsDir, { recursive: true });
+    }
+    const destPath = path.join(hintsDir, fileName);
+    fs.copyFileSync(sourceFilePath, destPath);
+
+    // Create marker file based on extension
+    const ext = path.extname(fileName).toLowerCase();
+    const baseName = path.basename(fileName, ext);
+    if (['.mp3', '.wav', '.ogg'].includes(ext)) {
+      fs.writeFileSync(path.join(hintsDir, baseName + '.audioclue'), '', 'utf-8');
+    } else if (['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext)) {
+      fs.writeFileSync(path.join(hintsDir, baseName + '.image'), '', 'utf-8');
+    } else if (['.mp4', '.webm', '.avi', '.mov'].includes(ext)) {
+      fs.writeFileSync(path.join(hintsDir, baseName + '.videoclue'), '', 'utf-8');
+    }
+
+    return { success: true, fileName };
+  }
+
+  deleteHint(roomName, language, fileName) {
+    const hintsDir = path.join(this.roomsDir, roomName, 'hints', language || 'English');
+    const filePath = path.join(hintsDir, fileName);
+
+    if (!fs.existsSync(filePath)) {
+      return { success: false, error: 'Hint file not found' };
+    }
+
+    const ext = path.extname(fileName).toLowerCase();
+    const baseName = path.basename(fileName, ext);
+
+    // Delete the main file
+    fs.unlinkSync(filePath);
+
+    // Delete associated marker files if they exist
+    const markers = ['.audioclue', '.image', '.videoclue'];
+    for (const marker of markers) {
+      const markerPath = path.join(hintsDir, baseName + marker);
+      if (fs.existsSync(markerPath)) {
+        fs.unlinkSync(markerPath);
+      }
+    }
+
+    // Update order.json if it exists
+    const orderFile = path.join(hintsDir, 'order.json');
+    if (fs.existsSync(orderFile)) {
+      try {
+        let order = JSON.parse(fs.readFileSync(orderFile, 'utf-8'));
+        order = order.filter(name => name !== baseName);
+        fs.writeFileSync(orderFile, JSON.stringify(order, null, 2), 'utf-8');
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    return { success: true };
+  }
+
+  createTextHint(roomName, language, name, content) {
+    const hintsDir = path.join(this.roomsDir, roomName, 'hints', language || 'English');
+    if (!fs.existsSync(hintsDir)) {
+      fs.mkdirSync(hintsDir, { recursive: true });
+    }
+    const filePath = path.join(hintsDir, name + '.txt');
+    fs.writeFileSync(filePath, content, 'utf-8');
+    return { success: true, name };
+  }
+
+  updateTextHint(roomName, language, name, content) {
+    const hintsDir = path.join(this.roomsDir, roomName, 'hints', language || 'English');
+    const filePath = path.join(hintsDir, name + '.txt');
+    if (!fs.existsSync(filePath)) {
+      return { success: false, error: 'Hint file not found' };
+    }
+    fs.writeFileSync(filePath, content, 'utf-8');
+    return { success: true, name };
+  }
+
+  reorderHints(roomName, language, orderedNames) {
+    const hintsDir = path.join(this.roomsDir, roomName, 'hints', language || 'English');
+    if (!fs.existsSync(hintsDir)) {
+      return { success: false, error: 'Hints directory not found' };
+    }
+    const orderFile = path.join(hintsDir, 'order.json');
+    fs.writeFileSync(orderFile, JSON.stringify(orderedNames, null, 2), 'utf-8');
+    return { success: true };
+  }
+
+  // --- File upload operations ---
+
+  saveLogo(roomName, sourceFilePath) {
+    const roomPath = path.join(this.roomsDir, roomName);
+    if (!fs.existsSync(roomPath)) {
+      return { success: false, error: 'Room not found' };
+    }
+    const destPath = path.join(roomPath, 'logo.png');
+    fs.copyFileSync(sourceFilePath, destPath);
+    return { success: true };
+  }
+
+  saveBackground(fileName, sourceFilePath) {
+    const bgDir = path.join(this.assetsDir, 'backgrounds');
+    if (!fs.existsSync(bgDir)) {
+      fs.mkdirSync(bgDir, { recursive: true });
+    }
+    const destPath = path.join(bgDir, fileName);
+    fs.copyFileSync(sourceFilePath, destPath);
+    return { success: true, fileName };
+  }
+
+  saveRoomSound(roomName, fileName, sourceFilePath) {
+    const soundsDir = path.join(this.roomsDir, roomName, 'sounds');
+    if (!fs.existsSync(soundsDir)) {
+      fs.mkdirSync(soundsDir, { recursive: true });
+    }
+    const destPath = path.join(soundsDir, fileName);
+    fs.copyFileSync(sourceFilePath, destPath);
+    return { success: true, fileName };
+  }
+
+  saveGlobalSound(fileName, sourceFilePath) {
+    const soundsDir = path.join(this.assetsDir, 'sounds');
+    if (!fs.existsSync(soundsDir)) {
+      fs.mkdirSync(soundsDir, { recursive: true });
+    }
+    const destPath = path.join(soundsDir, fileName);
+    fs.copyFileSync(sourceFilePath, destPath);
+    return { success: true, fileName };
+  }
+
+  // --- UUPC helpers ---
+
+  saveUupcPortNames(roomName, portNames) {
+    const roomPath = path.join(this.roomsDir, roomName);
+    const configFile = path.join(roomPath, 'config.json');
+    let config = {};
+    if (fs.existsSync(configFile)) {
+      try { config = JSON.parse(fs.readFileSync(configFile, 'utf-8')); } catch (e) { config = {}; }
+    }
+    config.uupcPortNames = portNames;
+    fs.writeFileSync(configFile, JSON.stringify(config, null, 2), 'utf-8');
+    return { success: true };
+  }
+
+  getUupcPortNames(roomName) {
+    const roomPath = path.join(this.roomsDir, roomName);
+    const configFile = path.join(roomPath, 'config.json');
+    if (!fs.existsSync(configFile)) return {};
+    try {
+      const config = JSON.parse(fs.readFileSync(configFile, 'utf-8'));
+      return config.uupcPortNames || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
   // --- Private helpers ---
 
   _readParams(roomPath) {
@@ -264,7 +452,17 @@ class RoomManager {
       },
       countdownType: 'S0',
       scheduledEvents: [],
-      quickActions: []
+      quickActions: [],
+      timerFontSize: '180px',
+      timerBorder: { style: 'none', color: '#ffffff', radius: '0', shadow: 'none' },
+      fontUrl: '',
+      idleScreen: true,
+      getReadyCountdown: true,
+      typingEffect: true,
+      displayLayout: 'center',
+      hintSchedule: [],
+      uupcPortNames: {},
+      uupcAutoActions: []
     };
 
     // Read params.txt

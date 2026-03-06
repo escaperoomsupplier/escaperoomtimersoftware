@@ -73,6 +73,19 @@ function setupIPC() {
   ipcMain.handle('scores:get', (_, roomName) => roomManager.getScores(roomName));
   ipcMain.handle('scores:getAll', () => roomManager.getAllScores());
 
+  // Hint file management
+  ipcMain.handle('rooms:saveHintFile', (_, roomName, language, fileName, sourcePath) => roomManager.saveHintFile(roomName, language, fileName, sourcePath));
+  ipcMain.handle('rooms:deleteHint', (_, roomName, language, fileName) => roomManager.deleteHint(roomName, language, fileName));
+  ipcMain.handle('rooms:createTextHint', (_, roomName, language, name, content) => roomManager.createTextHint(roomName, language, name, content));
+  ipcMain.handle('rooms:updateTextHint', (_, roomName, language, name, content) => roomManager.updateTextHint(roomName, language, name, content));
+  ipcMain.handle('rooms:reorderHints', (_, roomName, language, orderedNames) => roomManager.reorderHints(roomName, language, orderedNames));
+
+  // File uploads
+  ipcMain.handle('rooms:saveLogo', (_, roomName, sourcePath) => roomManager.saveLogo(roomName, sourcePath));
+  ipcMain.handle('rooms:saveBackground', (_, fileName, sourcePath) => roomManager.saveBackground(fileName, sourcePath));
+  ipcMain.handle('rooms:saveRoomSound', (_, roomName, fileName, sourcePath) => roomManager.saveRoomSound(roomName, fileName, sourcePath));
+  ipcMain.handle('rooms:saveGlobalSound', (_, fileName, sourcePath) => roomManager.saveGlobalSound(fileName, sourcePath));
+
   // UUPC API proxy (avoids CORS from renderer)
   ipcMain.handle('uupc:getState', async (_, ip) => {
     try {
@@ -126,6 +139,42 @@ function setupIPC() {
     }
   });
 
+  ipcMain.handle('uupc:scan', async () => {
+    const os = require('os');
+    const nets = os.networkInterfaces();
+    let subnet = null;
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name]) {
+        if (net.family === 'IPv4' && !net.internal) {
+          const parts = net.address.split('.');
+          subnet = parts.slice(0, 3).join('.');
+          break;
+        }
+      }
+      if (subnet) break;
+    }
+    if (!subnet) return [];
+
+    const found = [];
+    const promises = [];
+    for (let i = 1; i <= 254; i++) {
+      const ip = `${subnet}.${i}`;
+      promises.push(
+        Promise.race([
+          fetch(`http://${ip}/machine/state`).then(r => r.json()).then(data => {
+            found.push({ ip, machine: data });
+          }),
+          new Promise(resolve => setTimeout(resolve, 800))
+        ]).catch(() => {})
+      );
+    }
+    // Run in batches of 50 to not overwhelm
+    for (let i = 0; i < promises.length; i += 50) {
+      await Promise.all(promises.slice(i, i + 50));
+    }
+    return found;
+  });
+
   // Forward all timer/hint/display commands to Socket.IO
   const forwardEvents = [
     'timer:start', 'timer:pause', 'timer:resume', 'timer:reset',
@@ -153,6 +202,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 700,
     title: 'Escape Room Control',
+    icon: path.join(__dirname, 'assets', 'icon.ico'),
     backgroundColor: '#000000',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -175,7 +225,7 @@ function createWindow() {
 // --- App lifecycle ---
 
 app.whenReady().then(() => {
-  roomManager = new RoomManager(path.join(dataPath, 'rooms'));
+  roomManager = new RoomManager(path.join(dataPath, 'rooms'), assetsPath);
   startServer();
   setupIPC();
   createWindow();

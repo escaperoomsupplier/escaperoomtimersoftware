@@ -387,13 +387,11 @@ body::after {
 @keyframes view-enter {
   from {
     opacity: 0;
-    transform: translateY(12px);
-    filter: blur(4px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
-    filter: blur(0);
   }
 }
 
@@ -1429,6 +1427,277 @@ body::after {
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+/* ---- Toast Notifications ---- */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: var(--bg-elevated);
+  border: 0.5px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  pointer-events: auto;
+  animation: toast-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  max-width: 380px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  letter-spacing: -0.01em;
+}
+
+.toast.toast-out {
+  animation: toast-out 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.toast-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.toast.info .toast-icon { background: var(--accent-subtle); color: var(--accent); }
+.toast.success .toast-icon { background: var(--success-bg); color: var(--success); }
+.toast.warning .toast-icon { background: var(--warning-bg); color: var(--warning); }
+.toast.error .toast-icon { background: var(--danger-bg); color: var(--danger); }
+
+.toast.info { border-left: 3px solid var(--accent); }
+.toast.success { border-left: 3px solid var(--success); }
+.toast.warning { border-left: 3px solid var(--warning); }
+.toast.error { border-left: 3px solid var(--danger); }
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(40px) scale(0.95);
+  }
+}
+
+/* ---- Hint Preview Tooltip ---- */
+.hint-preview {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 12px;
+  background: var(--bg-elevated);
+  border: 0.5px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  padding: 12px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  max-width: 280px;
+  white-space: normal;
+  word-break: break-word;
+  z-index: 200;
+  pointer-events: none;
+  animation: hint-preview-in 0.2s ease forwards;
+  line-height: 1.5;
+}
+
+.hint-preview img {
+  max-width: 200px;
+  max-height: 120px;
+  border-radius: var(--radius-xs);
+  display: block;
+  margin-top: 4px;
+}
+
+@keyframes hint-preview-in {
+  from { opacity: 0; transform: translateY(-50%) translateX(-4px); }
+  to   { opacity: 1; transform: translateY(-50%) translateX(0); }
+}
+
+/* ---- Hint Editor (CRUD) ---- */
+.hint-delete-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all var(--transition);
+  z-index: 10;
+}
+
+.hint-item:hover .hint-delete-btn {
+  opacity: 1;
+}
+
+.hint-delete-btn:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.hint-crud-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.hint-mini-form {
+  background: var(--bg-tertiary);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  margin-bottom: 12px;
+  animation: view-enter 0.3s ease forwards;
+}
+
+.hint-mini-form .form-group {
+  margin-bottom: 12px;
+}
+
+.hint-mini-form .form-group:last-of-type {
+  margin-bottom: 14px;
+}
+
+.hint-mini-form input,
+.hint-mini-form textarea {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--bg-secondary);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+  transition: all var(--transition);
+}
+
+.hint-mini-form input:focus,
+.hint-mini-form textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+
+.hint-mini-form textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.hint-mini-form label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hint-mini-form .form-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  padding-top: 0;
+}
+
+/* ---- UUPC Port Override ---- */
+.uupc-port.clickable {
+  cursor: pointer;
+}
+
+.uupc-port.clickable:hover {
+  border-color: var(--accent);
+  transform: scale(1.1);
+  box-shadow: 0 0 8px var(--accent-subtle);
+}
+
+.uupc-port.overridden {
+  border-color: var(--warning);
+  box-shadow: 0 0 0 1.5px var(--warning);
+}
+
+.uupc-port.overridden.active {
+  border-color: var(--warning);
+  box-shadow: 0 0 6px rgba(255, 159, 10, 0.4);
+}
+
+/* UUPC Scan Button */
+.uupc-scan-wrap {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+/* ---- Checkbox Field ---- */
+.form-group-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.form-group-inline label {
+  margin-bottom: 0;
+  text-transform: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+
+.form-group-inline input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
 
 /* ---- Responsive ---- */
 @media (max-width: 1100px) {

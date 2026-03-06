@@ -2,6 +2,24 @@
 // Dashboard Controller
 // ========================================
 
+// ---- Toast Notifications ----
+
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+
+  const icons = { info: 'i', success: '\u2713', warning: '!', error: '\u2717' };
+  toast.innerHTML = `<span class="toast-icon">${icons[type] || icons.info}</span><span>${message}</span>`;
+
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add('toast-out');
+    toast.addEventListener('animationend', () => toast.remove());
+  }, 3000);
+}
+
 let currentRoom = null;
 let gameState = 'idle'; // idle, running, paused, ended
 let timerSeconds = 0;
@@ -105,6 +123,7 @@ async function loadRooms() {
       const name = btn.dataset.room;
       if (!confirm(`Delete room "${name}"? This cannot be undone.`)) return;
       await window.api.deleteRoom(name);
+      showToast(`Room "${name}" deleted`, 'success');
       await loadRooms();
     });
   });
@@ -133,13 +152,21 @@ async function openRoom(roomName) {
     roomName: currentRoom.name,
     duration: currentRoom.duration,
     maxHints: currentRoom.maxHints,
+    description: currentRoom.description || '',
     countdownType: currentRoom.countdownType || 'S0',
     countdownEffect: currentRoom.countdownEffect || '',
     successMessage: currentRoom.successMessage,
     failMessage: currentRoom.failMessage,
     theme: currentRoom.theme,
     bgMedia: currentRoom.bgMedia || '',
-    scheduledEvents: currentRoom.scheduledEvents || []
+    scheduledEvents: currentRoom.scheduledEvents || [],
+    timerFontSize: currentRoom.timerFontSize || '180px',
+    fontUrl: currentRoom.fontUrl || '',
+    typingEffect: currentRoom.typingEffect !== false,
+    idleScreen: currentRoom.idleScreen !== false,
+    getReadyCountdown: currentRoom.getReadyCountdown !== false,
+    displayLayout: currentRoom.displayLayout || 'center',
+    timerBorder: currentRoom.timerBorder || { style: 'none', color: '#00ffcc', radius: '0px', shadow: 'none' }
   });
 
   showView('control');
@@ -160,6 +187,22 @@ async function editRoom(roomName) {
   setThemeFields(room.theme);
   document.getElementById('setupDefaultLang').value = room.defaultLanguage || 'English';
   document.getElementById('setupBgMedia').value = room.bgMedia || '';
+
+  // Timer Display fields
+  document.getElementById('setupTimerFontSize').value = room.timerFontSize || '180px';
+  document.getElementById('setupFontUrl').value = room.fontUrl || '';
+  document.getElementById('setupTypingEffect').checked = room.typingEffect !== false;
+  document.getElementById('setupIdleScreen').checked = room.idleScreen !== false;
+  document.getElementById('setupGetReadyCountdown').checked = room.getReadyCountdown !== false;
+  document.getElementById('setupDisplayLayout').value = room.displayLayout || 'center';
+
+  // Timer Border fields
+  const border = room.timerBorder || {};
+  document.getElementById('setupBorderStyle').value = border.style || 'none';
+  document.getElementById('setupBorderColor').value = border.color || '#00ffcc';
+  document.getElementById('setupBorderColorText').value = border.color || '#00ffcc';
+  document.getElementById('setupBorderRadius').value = border.radius || '0px';
+  document.getElementById('setupBorderShadow').value = border.shadow || 'none';
 
   scheduledEvents = (room.scheduledEvents || []).map(e => ({ ...e }));
   renderEventsTable();
@@ -185,6 +228,22 @@ document.getElementById('btnNewRoom').addEventListener('click', () => {
   setThemeFields({});
   document.getElementById('setupDefaultLang').value = 'English';
   document.getElementById('setupBgMedia').value = '';
+
+  // Timer Display defaults
+  document.getElementById('setupTimerFontSize').value = '180px';
+  document.getElementById('setupFontUrl').value = '';
+  document.getElementById('setupTypingEffect').checked = true;
+  document.getElementById('setupIdleScreen').checked = true;
+  document.getElementById('setupGetReadyCountdown').checked = true;
+  document.getElementById('setupDisplayLayout').value = 'center';
+
+  // Timer Border defaults
+  document.getElementById('setupBorderStyle').value = 'none';
+  document.getElementById('setupBorderColor').value = '#00ffcc';
+  document.getElementById('setupBorderColorText').value = '#00ffcc';
+  document.getElementById('setupBorderRadius').value = '0px';
+  document.getElementById('setupBorderShadow').value = 'none';
+
   scheduledEvents = [];
   renderEventsTable();
   quickActions = [];
@@ -224,11 +283,24 @@ document.getElementById('btnSaveRoom').addEventListener('click', async () => {
     theme: getThemeFields(),
     defaultLanguage: document.getElementById('setupDefaultLang').value || 'English',
     bgMedia: document.getElementById('setupBgMedia').value.trim(),
+    timerFontSize: document.getElementById('setupTimerFontSize').value.trim() || '180px',
+    fontUrl: document.getElementById('setupFontUrl').value.trim(),
+    typingEffect: document.getElementById('setupTypingEffect').checked,
+    idleScreen: document.getElementById('setupIdleScreen').checked,
+    getReadyCountdown: document.getElementById('setupGetReadyCountdown').checked,
+    displayLayout: document.getElementById('setupDisplayLayout').value,
+    timerBorder: {
+      style: document.getElementById('setupBorderStyle').value,
+      color: document.getElementById('setupBorderColor').value,
+      radius: document.getElementById('setupBorderRadius').value.trim() || '0px',
+      shadow: document.getElementById('setupBorderShadow').value.trim() || 'none'
+    },
     scheduledEvents: scheduledEvents.filter(e => e.param),
     quickActions: quickActions.filter(q => q.label && q.param),
     uupcControllers: uupcControllers.filter(c => c.ip)
   });
 
+  showToast(`Room "${name}" saved successfully`, 'success');
   await loadRooms();
   showView('rooms');
 });
@@ -277,6 +349,34 @@ document.getElementById('btnAddUupc').addEventListener('click', () => {
   renderUupcTable();
 });
 
+document.getElementById('btnUupcScan').addEventListener('click', async () => {
+  const btn = document.getElementById('btnUupcScan');
+  btn.disabled = true;
+  btn.textContent = 'Scanning...';
+  try {
+    const foundIps = await window.api.uupcScan();
+    if (foundIps && foundIps.length > 0) {
+      const existingIps = new Set(uupcControllers.map(c => c.ip));
+      let added = 0;
+      foundIps.forEach(ip => {
+        if (!existingIps.has(ip)) {
+          uupcControllers.push({ name: '', ip });
+          added++;
+        }
+      });
+      renderUupcTable();
+      showToast(`Found ${foundIps.length} device(s), ${added} new added`, 'success');
+    } else {
+      showToast('No UUPC devices found on the network', 'info');
+    }
+  } catch (err) {
+    showToast('Scan failed: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg> Scan Network`;
+  }
+});
+
 // ---- UUPC Status Panel (Control View) ----
 
 const MACHINE_STATES = {
@@ -313,19 +413,21 @@ function renderUupcPanel() {
 
     if (online && state.inputs) {
       const inputs = Array.isArray(state.inputs) ? state.inputs : Object.values(state.inputs);
+      const overriddenInputs = state.overriddenInputs || [];
       inputsHtml = `
         <div class="uupc-ports-label">Inputs</div>
         <div class="uupc-ports">${inputs.map((v, p) =>
-          `<div class="uupc-port ${v ? 'active' : ''}" title="Input ${p + 1}">${p + 1}</div>`
+          `<div class="uupc-port clickable ${v ? 'active' : ''} ${overriddenInputs[p] ? 'overridden' : ''}" data-port-type="input" data-port-ip="${c.ip}" data-port-num="${p}" data-port-val="${v ? 1 : 0}" title="Input ${p + 1}${overriddenInputs[p] ? ' (overridden)' : ''} — click to toggle">${p + 1}</div>`
         ).join('')}</div>`;
     }
 
     if (online && state.outputs) {
       const outputs = Array.isArray(state.outputs) ? state.outputs : Object.values(state.outputs);
+      const overriddenOutputs = state.overriddenOutputs || [];
       outputsHtml = `
         <div class="uupc-ports-label">Outputs</div>
         <div class="uupc-ports">${outputs.map((v, p) =>
-          `<div class="uupc-port ${v ? 'active' : ''}" title="Output ${p + 1}">${p + 1}</div>`
+          `<div class="uupc-port clickable ${v ? 'active' : ''} ${overriddenOutputs[p] ? 'overridden' : ''}" data-port-type="output" data-port-ip="${c.ip}" data-port-num="${p}" data-port-val="${v ? 1 : 0}" title="Output ${p + 1}${overriddenOutputs[p] ? ' (overridden)' : ''} — click to toggle">${p + 1}</div>`
         ).join('')}</div>`;
     }
 
@@ -359,6 +461,30 @@ function renderUupcPanel() {
   });
   list.querySelectorAll('.uupc-btn-progress').forEach(btn => {
     btn.addEventListener('click', () => uupcSetState(btn.dataset.ip, 1));
+  });
+
+  // Bind port override click handlers
+  list.querySelectorAll('.uupc-port.clickable').forEach(portEl => {
+    portEl.addEventListener('click', async () => {
+      const ip = portEl.dataset.portIp;
+      const port = parseInt(portEl.dataset.portNum, 10);
+      const currentVal = portEl.dataset.portVal === '1';
+      const type = portEl.dataset.portType;
+
+      try {
+        if (type === 'input') {
+          await window.api.uupcOverrideInput(ip, port, !currentVal);
+        } else {
+          await window.api.uupcOverrideOutput(ip, port, !currentVal);
+        }
+        portEl.classList.add('overridden');
+        // Re-poll to update state
+        await pollUupcState(ip);
+        renderUupcPanel();
+      } catch (err) {
+        showToast('Override failed: ' + err.message, 'error');
+      }
+    });
   });
 }
 
@@ -408,6 +534,7 @@ function syncColorPair(colorId, textId) {
 syncColorPair('setupBgColor', 'setupBgColorText');
 syncColorPair('setupTimerColor', 'setupTimerColorText');
 syncColorPair('setupHintColor', 'setupHintColorText');
+syncColorPair('setupBorderColor', 'setupBorderColorText');
 
 function setThemeFields(theme) {
   const t = theme || {};
@@ -784,11 +911,56 @@ function updateHintsPanel() {
     <div class="hint-item ${hint.sent ? 'sent' : ''}" data-index="${i}">
       <span class="hint-type-badge ${hint.type}">${hint.type}</span>
       <span class="hint-name">${hint.name}</span>
+      <button class="hint-delete-btn" data-hint-index="${i}" title="Delete hint">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
     </div>
   `).join('');
 
   list.querySelectorAll('.hint-item').forEach(item => {
-    item.addEventListener('click', () => sendHint(parseInt(item.dataset.index, 10)));
+    const idx = parseInt(item.dataset.index, 10);
+
+    // Click to send hint
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.hint-delete-btn')) return;
+      sendHint(idx);
+    });
+
+    // Right-click to edit text hints
+    item.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const hint = hints[idx];
+      if (hint.type === 'text') {
+        showHintEditForm(hint);
+      }
+    });
+
+    // Hover for preview
+    item.addEventListener('mouseenter', () => {
+      showHintPreview(item, hints[idx]);
+    });
+    item.addEventListener('mouseleave', () => {
+      hideHintPreview(item);
+    });
+  });
+
+  // Delete buttons
+  list.querySelectorAll('.hint-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.hintIndex, 10);
+      const hint = hints[idx];
+      if (!confirm(`Delete hint "${hint.name}"?`)) return;
+      try {
+        const lang = currentRoom.defaultLanguage || 'English';
+        await window.api.deleteHint(currentRoom.name, lang, hint.filename || hint.name);
+        hints = await window.api.getHints(currentRoom.name, lang);
+        updateHintsPanel();
+        showToast(`Hint "${hint.name}" deleted`, 'success');
+      } catch (err) {
+        showToast('Failed to delete hint: ' + err.message, 'error');
+      }
+    });
   });
 }
 
@@ -808,6 +980,7 @@ function sendHint(index) {
     path: hint.path || ''
   });
 
+  showToast(`Hint sent: ${hint.name}`, 'info');
   updateTimerDisplay();
   updateHintsPanel();
 }
@@ -817,6 +990,7 @@ document.getElementById('btnSendCustomHint').addEventListener('click', () => {
   const text = input.value.trim();
   if (!text) return;
   window.api.sendHint({ type: 'text', content: text, name: 'Custom', filename: '', path: '' });
+  showToast('Custom hint sent', 'info');
   input.value = '';
 });
 
@@ -828,6 +1002,127 @@ document.getElementById('customHintText').addEventListener('keydown', (e) => {
 });
 
 document.getElementById('btnClearHint').addEventListener('click', () => window.api.clearHint());
+
+// ---- Hint Preview ----
+
+function showHintPreview(hintEl, hint) {
+  hideHintPreview(hintEl);
+  const preview = document.createElement('div');
+  preview.className = 'hint-preview';
+
+  switch (hint.type) {
+    case 'text':
+      const truncated = (hint.content || '').substring(0, 100);
+      preview.textContent = truncated + (hint.content && hint.content.length > 100 ? '...' : '');
+      break;
+    case 'audio':
+      preview.textContent = 'Audio: ' + (hint.filename || hint.name);
+      break;
+    case 'image':
+      const imgPath = hint.path || hint.filename || '';
+      preview.innerHTML = `<div>Image: ${hint.filename || hint.name}</div>${imgPath ? `<img src="${imgPath}" alt="${hint.name}">` : ''}`;
+      break;
+    case 'video':
+      preview.textContent = 'Video: ' + (hint.filename || hint.name);
+      break;
+    default:
+      preview.textContent = hint.name;
+  }
+
+  hintEl.appendChild(preview);
+}
+
+function hideHintPreview(hintEl) {
+  const existing = hintEl.querySelector('.hint-preview');
+  if (existing) existing.remove();
+}
+
+// ---- Hint CRUD ----
+
+function showHintCreateForm() {
+  const container = document.getElementById('hintEditorForm');
+  container.innerHTML = `
+    <div class="hint-mini-form">
+      <div class="form-group">
+        <label>Hint Name</label>
+        <input type="text" id="newHintName" placeholder="e.g. Puzzle 1">
+      </div>
+      <div class="form-group">
+        <label>Content (HTML supported)</label>
+        <textarea id="newHintContent" rows="3" placeholder="Enter hint text..."></textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost btn-sm" id="btnCancelNewHint">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="btnConfirmNewHint">Create</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('btnCancelNewHint').addEventListener('click', () => {
+    container.innerHTML = '';
+  });
+
+  document.getElementById('btnConfirmNewHint').addEventListener('click', async () => {
+    const name = document.getElementById('newHintName').value.trim();
+    const content = document.getElementById('newHintContent').value.trim();
+    if (!name) { showToast('Hint name is required', 'warning'); return; }
+    if (!content) { showToast('Hint content is required', 'warning'); return; }
+    try {
+      const lang = currentRoom.defaultLanguage || 'English';
+      await window.api.createTextHint(currentRoom.name, lang, name, content);
+      hints = await window.api.getHints(currentRoom.name, lang);
+      updateHintsPanel();
+      container.innerHTML = '';
+      showToast(`Hint "${name}" created`, 'success');
+    } catch (err) {
+      showToast('Failed to create hint: ' + err.message, 'error');
+    }
+  });
+
+  document.getElementById('newHintName').focus();
+}
+
+function showHintEditForm(hint) {
+  const container = document.getElementById('hintEditorForm');
+  container.innerHTML = `
+    <div class="hint-mini-form">
+      <div class="form-group">
+        <label>Edit: ${hint.name}</label>
+        <textarea id="editHintContent" rows="4">${hint.content || ''}</textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost btn-sm" id="btnCancelEditHint">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="btnConfirmEditHint">Save</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('btnCancelEditHint').addEventListener('click', () => {
+    container.innerHTML = '';
+  });
+
+  document.getElementById('btnConfirmEditHint').addEventListener('click', async () => {
+    const content = document.getElementById('editHintContent').value.trim();
+    if (!content) { showToast('Hint content cannot be empty', 'warning'); return; }
+    try {
+      const lang = currentRoom.defaultLanguage || 'English';
+      await window.api.updateTextHint(currentRoom.name, lang, hint.name, content);
+      hints = await window.api.getHints(currentRoom.name, lang);
+      updateHintsPanel();
+      container.innerHTML = '';
+      showToast(`Hint "${hint.name}" updated`, 'success');
+    } catch (err) {
+      showToast('Failed to update hint: ' + err.message, 'error');
+    }
+  });
+
+  document.getElementById('editHintContent').focus();
+}
+
+document.getElementById('btnCreateHint').addEventListener('click', () => {
+  if (!currentRoom) { showToast('No room selected', 'warning'); return; }
+  showHintCreateForm();
+});
 
 // ---- Special Messages ----
 

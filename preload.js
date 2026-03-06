@@ -8,6 +8,20 @@ contextBridge.exposeInMainWorld('api', {
   getHints: (roomName, language) => ipcRenderer.invoke('rooms:getHints', roomName, language),
   getSounds: (roomName) => ipcRenderer.invoke('rooms:getSounds', roomName),
   deleteRoom: (name) => ipcRenderer.invoke('rooms:delete', name),
+
+  // Hint file management
+  saveHintFile: (roomName, language, fileName, sourcePath) => ipcRenderer.invoke('rooms:saveHintFile', roomName, language, fileName, sourcePath),
+  deleteHint: (roomName, language, fileName) => ipcRenderer.invoke('rooms:deleteHint', roomName, language, fileName),
+  createTextHint: (roomName, language, name, content) => ipcRenderer.invoke('rooms:createTextHint', roomName, language, name, content),
+  updateTextHint: (roomName, language, name, content) => ipcRenderer.invoke('rooms:updateTextHint', roomName, language, name, content),
+  reorderHints: (roomName, language, orderedNames) => ipcRenderer.invoke('rooms:reorderHints', roomName, language, orderedNames),
+
+  // File uploads
+  saveLogo: (roomName, sourcePath) => ipcRenderer.invoke('rooms:saveLogo', roomName, sourcePath),
+  saveBackground: (fileName, sourcePath) => ipcRenderer.invoke('rooms:saveBackground', fileName, sourcePath),
+  saveRoomSound: (roomName, fileName, sourcePath) => ipcRenderer.invoke('rooms:saveRoomSound', roomName, fileName, sourcePath),
+  saveGlobalSound: (fileName, sourcePath) => ipcRenderer.invoke('rooms:saveGlobalSound', fileName, sourcePath),
+
   saveScore: (roomName, data) => ipcRenderer.invoke('scores:save', roomName, data),
   getScores: (roomName) => ipcRenderer.invoke('scores:get', roomName),
   getAllScores: () => ipcRenderer.invoke('scores:getAll'),
@@ -39,6 +53,7 @@ contextBridge.exposeInMainWorld('api', {
   uupcSetMachineState: (ip, value) => ipcRenderer.invoke('uupc:setMachineState', ip, value),
   uupcOverrideInput: (ip, port, value) => ipcRenderer.invoke('uupc:overrideInput', ip, port, value),
   uupcOverrideOutput: (ip, port, value) => ipcRenderer.invoke('uupc:overrideOutput', ip, port, value),
+  uupcScan: () => ipcRenderer.invoke('uupc:scan'),
 
   // Events from main process
   onTimerTick: (cb) => ipcRenderer.on('timer:tick', (_, data) => cb(data)),

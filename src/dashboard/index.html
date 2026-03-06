@@ -205,6 +205,79 @@
             <p class="field-hint" style="margin-top:6px">Path in assets/backgrounds/. Leave empty for default dark theme. Supports .jpg, .png, .mp4, .webm</p>
           </div>
 
+          <!-- Timer Display Options -->
+          <div class="section-divider"></div>
+          <div class="card-header">
+            <h3>Timer Display</h3>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="setupTimerFontSize">Timer Font Size</label>
+              <input type="text" id="setupTimerFontSize" value="180px" placeholder="180px">
+            </div>
+            <div class="form-group">
+              <label for="setupFontUrl">Font URL (Google Fonts)</label>
+              <input type="text" id="setupFontUrl" placeholder="https://fonts.googleapis.com/css2?family=...">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="setupDisplayLayout">Display Layout</label>
+              <select id="setupDisplayLayout">
+                <option value="center">Center</option>
+                <option value="top">Top</option>
+                <option value="bottom">Bottom</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group-inline">
+            <input type="checkbox" id="setupTypingEffect" checked>
+            <label for="setupTypingEffect">Typing Effect for text hints</label>
+          </div>
+          <div class="form-group-inline">
+            <input type="checkbox" id="setupIdleScreen" checked>
+            <label for="setupIdleScreen">Show Idle Screen before game starts</label>
+          </div>
+          <div class="form-group-inline">
+            <input type="checkbox" id="setupGetReadyCountdown" checked>
+            <label for="setupGetReadyCountdown">Get Ready Countdown on start</label>
+          </div>
+
+          <!-- Timer Border -->
+          <div class="section-divider"></div>
+          <div class="card-header">
+            <h3>Timer Border</h3>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="setupBorderStyle">Border Style</label>
+              <select id="setupBorderStyle">
+                <option value="none">None</option>
+                <option value="1px solid">1px solid</option>
+                <option value="2px solid">2px solid</option>
+                <option value="3px solid">3px solid</option>
+                <option value="2px dashed">2px dashed</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="setupBorderColor">Border Color</label>
+              <div class="color-input-wrap">
+                <input type="color" id="setupBorderColor" value="#00ffcc">
+                <input type="text" id="setupBorderColorText" value="#00ffcc" class="color-text" maxlength="7">
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="setupBorderRadius">Border Radius</label>
+              <input type="text" id="setupBorderRadius" value="0px" placeholder="0px">
+            </div>
+            <div class="form-group">
+              <label for="setupBorderShadow">Border Shadow</label>
+              <input type="text" id="setupBorderShadow" value="none" placeholder="0 0 30px rgba(0,255,204,0.3)">
+            </div>
+          </div>
+
           <!-- Quick Actions -->
           <div class="section-divider"></div>
           <div class="card-header">
@@ -240,6 +313,12 @@
             </button>
           </div>
           <p class="field-hint">Add Ultimate Universal Puzzle Controllers by their network IP address.</p>
+          <div class="uupc-scan-wrap">
+            <button class="btn btn-ghost btn-sm" id="btnUupcScan">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+              Scan Network
+            </button>
+          </div>
           <div class="events-table-wrap">
             <table class="events-table" id="uupcTable">
               <thead>
@@ -339,6 +418,13 @@
               <h3>Hints</h3>
               <span class="badge" id="hintsRemaining">0</span>
             </div>
+            <div class="hint-crud-bar">
+              <button class="btn btn-ghost btn-sm" id="btnCreateHint">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                New Hint
+              </button>
+            </div>
+            <div id="hintEditorForm"></div>
             <div class="hints-list" id="hintsList"></div>
             <div class="hint-compose">
               <input type="text" id="customHintText" placeholder="Type a custom hint...">
@@ -435,6 +521,8 @@
 
     </main>
   </div>
+
+  <div id="toastContainer" class="toast-container"></div>
 
   <script src="dashboard.js"></script>
 </body>

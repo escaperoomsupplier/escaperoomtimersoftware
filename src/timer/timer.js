@@ -159,9 +159,64 @@ socket.on('config:update', (data) => {
   } else {
     document.getElementById('bgMedia').innerHTML = '';
   }
+
+  // Feature 1: More fonts support — dynamic Google Fonts loading
+  if (data.fontUrl) {
+    const link = document.getElementById('customFontLink') || document.createElement('link');
+    link.id = 'customFontLink';
+    link.rel = 'stylesheet';
+    link.href = data.fontUrl;
+    document.head.appendChild(link);
+  }
+
+  // Feature 3: Configurable timer digit size
+  if (data.timerFontSize) {
+    timerDigits.style.fontSize = data.timerFontSize;
+  }
+
+  // Feature 4: Border/frame around timer
+  if (data.timerBorder) {
+    const b = data.timerBorder;
+    const wrapper = document.querySelector('.timer-wrapper');
+    if (b.style && b.color) {
+      wrapper.style.border = `${b.style} ${b.color}`;
+      wrapper.style.padding = '24px 48px';
+      wrapper.style.borderRadius = b.radius || '0px';
+    }
+    if (b.shadow) wrapper.style.boxShadow = b.shadow;
+  }
+
+  // Feature 5: Idle screen — show room description/logo before game start
+  const idleScreen = document.getElementById('idleScreen');
+  if (data.roomName) {
+    document.getElementById('idleRoomName').textContent = data.roomName;
+  }
+  if (data.description) {
+    document.getElementById('idleDescription').textContent = data.description;
+  }
+  if (data.roomName && data.idleScreen !== false) {
+    // Show logo if exists
+    const logoPath = `/data/rooms/${data.roomName}/logo.png`;
+    document.getElementById('idleLogo').innerHTML = `<img src="${logoPath}" alt="" onerror="this.style.display='none'">`;
+    idleScreen.classList.add('visible');
+  }
+
+  // Feature 7: Configurable element positions (display layout)
+  if (data.displayLayout) {
+    document.querySelector('.display-container').dataset.layout = data.displayLayout;
+  }
 });
 
+function startActualTimer(duration) {
+  endTime = Date.now() + duration * 1000;
+  updateDisplay();
+  timerInterval = setInterval(updateDisplay, 250);
+}
+
 socket.on('timer:start', (data) => {
+  // Hide idle screen
+  document.getElementById('idleScreen').classList.remove('visible');
+
   clearInterval(timerInterval);
   isPaused = false;
   firedEvents = new Set();
@@ -169,12 +224,33 @@ socket.on('timer:start', (data) => {
   clearHintDisplay();
 
   totalDuration = (data.hours * 3600) + (data.minutes * 60) + data.seconds;
-  endTime = Date.now() + totalDuration * 1000;
-
   timerDigits.classList.remove('paused', 'ended');
 
-  updateDisplay();
-  timerInterval = setInterval(updateDisplay, 250);
+  if (config.getReadyCountdown) {
+    // Show get ready countdown
+    let count = 5;
+    const getReadyEl = document.getElementById('getReadyOverlay');
+    const getReadyNum = document.getElementById('getReadyNumber');
+    getReadyEl.classList.add('visible');
+    getReadyNum.textContent = count;
+
+    const countInterval = setInterval(() => {
+      count--;
+      if (count > 0) {
+        getReadyNum.textContent = count;
+        getReadyNum.classList.remove('pop');
+        void getReadyNum.offsetWidth; // force reflow
+        getReadyNum.classList.add('pop');
+      } else {
+        clearInterval(countInterval);
+        getReadyEl.classList.remove('visible');
+        // NOW start the actual timer
+        startActualTimer(totalDuration);
+      }
+    }, 1000);
+  } else {
+    startActualTimer(totalDuration);
+  }
 });
 
 socket.on('timer:pause', () => {
@@ -215,6 +291,11 @@ socket.on('timer:reset', () => {
     timerDigits.textContent = formatTime(totalDuration, config.countdownType);
   }
   if (config.maxHints != null) hintsValue.textContent = config.maxHints;
+
+  // Show idle screen again if configured
+  if (config.idleScreen !== false && config.roomName) {
+    document.getElementById('idleScreen').classList.add('visible');
+  }
 });
 
 socket.on('timer:addTime', (data) => {
@@ -256,7 +337,32 @@ function showHint(data) {
     switch (data.type) {
       case 'text':
         hintContent.classList.add('text-hint');
-        hintContent.innerHTML = data.content;
+        if (config.typingEffect) {
+          hintContent.innerHTML = '';
+          hintContent.classList.add('typing');
+          const text = data.content;
+          let i = 0;
+          const typeInterval = setInterval(() => {
+            if (i < text.length) {
+              // Handle HTML tags - skip through them entirely
+              if (text[i] === '<') {
+                const closeIdx = text.indexOf('>', i);
+                if (closeIdx !== -1) {
+                  hintContent.innerHTML += text.substring(i, closeIdx + 1);
+                  i = closeIdx + 1;
+                  return;
+                }
+              }
+              hintContent.innerHTML += text[i];
+              i++;
+            } else {
+              clearInterval(typeInterval);
+              hintContent.classList.remove('typing');
+            }
+          }, 40);
+        } else {
+          hintContent.innerHTML = data.content;
+        }
         break;
       case 'image':
         hintContent.innerHTML = `<img src="${data.path}" alt="Hint">`;
