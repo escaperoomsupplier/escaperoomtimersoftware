@@ -6,6 +6,10 @@ contextBridge.exposeInMainWorld('api', {
   getRoom: (name) => ipcRenderer.invoke('rooms:get', name),
   saveRoom: (data) => ipcRenderer.invoke('rooms:save', data),
   getHints: (roomName, language) => ipcRenderer.invoke('rooms:getHints', roomName, language),
+  getSounds: (roomName) => ipcRenderer.invoke('rooms:getSounds', roomName),
+  saveScore: (roomName, data) => ipcRenderer.invoke('scores:save', roomName, data),
+  getScores: (roomName) => ipcRenderer.invoke('scores:get', roomName),
+  getAllScores: () => ipcRenderer.invoke('scores:getAll'),
 
   // Timer controls — send to main, which forwards via Socket.IO
   timerStart: (data) => ipcRenderer.send('timer:start', data),
@@ -25,7 +29,15 @@ contextBridge.exposeInMainWorld('api', {
   showMessage: (data) => ipcRenderer.send('display:message', data),
   playSound: (data) => ipcRenderer.send('sound:play', data),
   playVideo: (data) => ipcRenderer.send('video:play', data),
+  musicPlay: (data) => ipcRenderer.send('music:play', data),
+  musicStop: () => ipcRenderer.send('music:stop'),
   updateConfig: (data) => ipcRenderer.send('config:update', data),
+
+  // UUPC puzzle controller
+  uupcGetState: (ip) => ipcRenderer.invoke('uupc:getState', ip),
+  uupcSetMachineState: (ip, value) => ipcRenderer.invoke('uupc:setMachineState', ip, value),
+  uupcOverrideInput: (ip, port, value) => ipcRenderer.invoke('uupc:overrideInput', ip, port, value),
+  uupcOverrideOutput: (ip, port, value) => ipcRenderer.invoke('uupc:overrideOutput', ip, port, value),
 
   // Events from main process
   onTimerTick: (cb) => ipcRenderer.on('timer:tick', (_, data) => cb(data)),

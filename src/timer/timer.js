@@ -10,6 +10,7 @@ let totalDuration = 0;
 let isPaused = false;
 let pausedRemaining = 0;
 let config = {};
+let firedEvents = new Set();
 
 // ---- DOM ----
 const timerDigits = document.getElementById('timerDigits');
@@ -68,15 +69,56 @@ function updateDisplay() {
   const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
   timerDigits.textContent = formatTime(remaining, config.countdownType);
 
-  timerDigits.classList.remove('danger', 'paused', 'ended');
-  if (remaining <= 60 && remaining > 0) timerDigits.classList.add('danger');
+  timerDigits.classList.remove('danger', 'paused', 'ended',
+    'fx-pulsate', 'fx-bounce', 'fx-shake', 'fx-blur', 'fx-jello',
+    'fx-flash', 'fx-rubberband', 'fx-heartbeat', 'fx-swing', 'fx-flicker');
+  if (remaining <= 60 && remaining > 0) {
+    timerDigits.classList.add('danger');
+    if (config.countdownEffect) timerDigits.classList.add(config.countdownEffect);
+  }
 
   socket.emit('timer:tick', { remaining, formatted: formatTime(remaining, config.countdownType) });
+
+  checkScheduledEvents(remaining);
 
   if (remaining <= 0) {
     clearInterval(timerInterval);
     timerInterval = null;
     socket.emit('timer:finished');
+  }
+}
+
+// ---- Scheduled Events Engine ----
+
+function checkScheduledEvents(remaining) {
+  if (!config.scheduledEvents || config.scheduledEvents.length === 0) return;
+  const elapsed = totalDuration - remaining;
+  const elapsedMinutes = Math.floor(elapsed / 60);
+
+  config.scheduledEvents.forEach((evt, i) => {
+    if (firedEvents.has(i)) return;
+    if (elapsedMinutes >= evt.minute) {
+      firedEvents.add(i);
+      executeScheduledEvent(evt);
+    }
+  });
+}
+
+function executeScheduledEvent(evt) {
+  switch (evt.action) {
+    case 'playSound':
+      new Audio(`/assets/sounds/${evt.param}`).play().catch(() => {});
+      break;
+    case 'displayText':
+      showOverlay('bonus', evt.param);
+      setTimeout(hideOverlay, 5000);
+      break;
+    case 'playVideo':
+      hintContent.innerHTML = `<video src="/assets/sounds/${evt.param}" autoplay></video>`;
+      hintContent.classList.add('visible');
+      const video = hintContent.querySelector('video');
+      if (video) video.onended = () => clearHintDisplay();
+      break;
   }
 }
 
@@ -99,11 +141,30 @@ socket.on('config:update', (data) => {
     totalDuration = data.duration * 60;
     timerDigits.textContent = formatTime(totalDuration, data.countdownType);
   }
+  if (data.theme) {
+    const t = data.theme;
+    if (t.backgroundColor) document.body.style.background = t.backgroundColor;
+    if (t.timerColor) timerDigits.style.color = t.timerColor;
+    if (t.hintColor) hintContent.style.color = t.hintColor;
+    if (t.fontFamily) timerDigits.style.fontFamily = t.fontFamily + ', sans-serif';
+  }
+  if (data.bgMedia) {
+    const bgEl = document.getElementById('bgMedia');
+    const ext = data.bgMedia.split('.').pop().toLowerCase();
+    if (['mp4', 'webm'].includes(ext)) {
+      bgEl.innerHTML = `<video src="/assets/backgrounds/${data.bgMedia}" autoplay loop muted></video>`;
+    } else {
+      bgEl.innerHTML = `<img src="/assets/backgrounds/${data.bgMedia}" alt="">`;
+    }
+  } else {
+    document.getElementById('bgMedia').innerHTML = '';
+  }
 });
 
 socket.on('timer:start', (data) => {
   clearInterval(timerInterval);
   isPaused = false;
+  firedEvents = new Set();
   hideOverlay();
   clearHintDisplay();
 
@@ -143,6 +204,7 @@ socket.on('timer:reset', () => {
   timerInterval = null;
   endTime = null;
   isPaused = false;
+  firedEvents = new Set();
 
   timerDigits.classList.remove('paused', 'danger', 'ended');
   hideOverlay();
@@ -179,6 +241,8 @@ socket.on('timer:end', (data) => {
 socket.on('hint:send', (data) => {
   const current = parseInt(hintsValue.textContent, 10);
   if (current > 0) hintsValue.textContent = current - 1;
+  // Play alert tone for hint delivery
+  new Audio('/assets/sounds/hint-alert.mp3').play().catch(() => {});
   showHint(data);
 });
 
@@ -267,7 +331,22 @@ socket.on('display:message', (data) => {
 });
 
 socket.on('sound:play', (data) => {
-  new Audio(`/assets/sounds/${data.filename}`).play().catch(() => {});
+  const src = data.path || `/assets/sounds/${data.filename}`;
+  new Audio(src).play().catch(() => {});
+});
+
+let bgMusic = null;
+
+socket.on('music:play', (data) => {
+  if (bgMusic) { bgMusic.pause(); bgMusic = null; }
+  bgMusic = new Audio(`/data/rooms/${data.roomName}/main_theme/theme.mp3`);
+  bgMusic.loop = true;
+  bgMusic.volume = 0.5;
+  bgMusic.play().catch(() => {});
+});
+
+socket.on('music:stop', () => {
+  if (bgMusic) { bgMusic.pause(); bgMusic = null; }
 });
 
 socket.on('video:play', (data) => {

@@ -71,8 +71,11 @@ class RoomManager {
         fontFamily: 'Orbitron'
       },
       countdownType: roomData.countdownType || 'S0',
+      countdownEffect: roomData.countdownEffect || '',
+      bgMedia: roomData.bgMedia || '',
       scheduledEvents: roomData.scheduledEvents || [],
-      quickActions: roomData.quickActions || []
+      quickActions: roomData.quickActions || [],
+      uupcControllers: roomData.uupcControllers || []
     };
 
     fs.writeFileSync(
@@ -170,6 +173,67 @@ class RoomManager {
     hints.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
     return hints;
+  }
+
+  saveScore(roomName, scoreData) {
+    const scoresFile = path.join(this.roomsDir, roomName, 'scores.json');
+    let scores = [];
+    if (fs.existsSync(scoresFile)) {
+      try { scores = JSON.parse(fs.readFileSync(scoresFile, 'utf-8')); } catch (e) { scores = []; }
+    }
+    scores.push({
+      ...scoreData,
+      timestamp: new Date().toISOString()
+    });
+    fs.writeFileSync(scoresFile, JSON.stringify(scores, null, 2), 'utf-8');
+    return { success: true };
+  }
+
+  getScores(roomName) {
+    const scoresFile = path.join(this.roomsDir, roomName, 'scores.json');
+    if (!fs.existsSync(scoresFile)) return [];
+    try { return JSON.parse(fs.readFileSync(scoresFile, 'utf-8')); } catch (e) { return []; }
+  }
+
+  getAllScores() {
+    const rooms = this.listRooms();
+    const all = [];
+    for (const room of rooms) {
+      const scores = this.getScores(room.name);
+      scores.forEach(s => all.push({ ...s, roomName: room.name }));
+    }
+    all.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    return all;
+  }
+
+  getSounds(roomName) {
+    const sounds = [];
+
+    // Room-specific sounds
+    const roomSoundsDir = path.join(this.roomsDir, roomName, 'sounds');
+    if (fs.existsSync(roomSoundsDir)) {
+      fs.readdirSync(roomSoundsDir)
+        .filter(f => /\.(mp3|wav|ogg)$/i.test(f))
+        .forEach(f => sounds.push({
+          name: path.basename(f, path.extname(f)),
+          filename: f,
+          path: `/data/rooms/${roomName}/sounds/${f}`
+        }));
+    }
+
+    // Global sounds
+    const globalSoundsDir = path.join(this.roomsDir, '..', '..', 'assets', 'sounds');
+    if (fs.existsSync(globalSoundsDir)) {
+      fs.readdirSync(globalSoundsDir)
+        .filter(f => /\.(mp3|wav|ogg)$/i.test(f))
+        .forEach(f => sounds.push({
+          name: path.basename(f, path.extname(f)),
+          filename: f,
+          path: `/assets/sounds/${f}`
+        }));
+    }
+
+    return sounds;
   }
 
   // --- Private helpers ---

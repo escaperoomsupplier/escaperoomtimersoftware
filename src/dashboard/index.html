@@ -59,6 +59,10 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
           <span>Setup</span>
         </button>
+        <button class="nav-item" data-view="scores">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+          <span>Scores</span>
+        </button>
       </div>
       <div class="nav-group nav-bottom">
         <button class="nav-item accent" id="btnOpenTimer">
@@ -119,6 +123,24 @@
               </select>
             </div>
           </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="setupCountdownEffect">Countdown Effect (last 60s)</label>
+              <select id="setupCountdownEffect">
+                <option value="">None</option>
+                <option value="fx-pulsate">Pulsate</option>
+                <option value="fx-bounce">Bounce</option>
+                <option value="fx-shake">Shake</option>
+                <option value="fx-blur">Blur</option>
+                <option value="fx-jello">Jello</option>
+                <option value="fx-flash">Flash</option>
+                <option value="fx-rubberband">Rubberband</option>
+                <option value="fx-heartbeat">Heartbeat</option>
+                <option value="fx-swing">Swing</option>
+                <option value="fx-flicker">Flicker</option>
+              </select>
+            </div>
+          </div>
           <div class="form-group">
             <label for="setupDescription">Description</label>
             <textarea id="setupDescription" rows="2" placeholder="Brief room description..."></textarea>
@@ -133,6 +155,130 @@
               <input type="text" id="setupFailMsg" value="Time is up! You are trapped!">
             </div>
           </div>
+          <!-- Theme Customization -->
+          <div class="section-divider"></div>
+          <div class="card-header">
+            <h3>Display Theme</h3>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="setupBgColor">Background Color</label>
+              <div class="color-input-wrap">
+                <input type="color" id="setupBgColor" value="#000000">
+                <input type="text" id="setupBgColorText" value="#000000" class="color-text" maxlength="7">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="setupTimerColor">Timer Color</label>
+              <div class="color-input-wrap">
+                <input type="color" id="setupTimerColor" value="#00ffcc">
+                <input type="text" id="setupTimerColorText" value="#00ffcc" class="color-text" maxlength="7">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="setupHintColor">Hint Color</label>
+              <div class="color-input-wrap">
+                <input type="color" id="setupHintColor" value="#ff9900">
+                <input type="text" id="setupHintColorText" value="#ff9900" class="color-text" maxlength="7">
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="setupFont">Timer Font</label>
+              <select id="setupFont">
+                <option value="Orbitron">Orbitron</option>
+                <option value="Inter">Inter</option>
+                <option value="monospace">Monospace</option>
+                <option value="serif">Serif</option>
+                <option value="sans-serif">Sans-serif</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="setupDefaultLang">Default Language</label>
+              <input type="text" id="setupDefaultLang" value="English" placeholder="English">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="setupBgMedia">Background Image/Video (path in assets/backgrounds/)</label>
+            <input type="text" id="setupBgMedia" placeholder="e.g. space.jpg or loop.mp4">
+            <p class="field-hint" style="margin-top:4px">Leave empty for default dark theme. Supports .jpg, .png, .mp4, .webm</p>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="section-divider"></div>
+          <div class="card-header">
+            <h3>Quick Actions</h3>
+            <button class="btn btn-ghost btn-sm" id="btnAddQuickAction">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Add Action
+            </button>
+          </div>
+          <p class="field-hint">Configurable buttons shown in the control panel during a game.</p>
+          <div class="events-table-wrap">
+            <table class="events-table" id="quickActionsTable">
+              <thead>
+                <tr>
+                  <th>Label</th>
+                  <th>Action</th>
+                  <th>Parameter</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="quickActionsBody"></tbody>
+            </table>
+            <div class="empty-state events-empty" id="quickActionsEmpty">No quick actions</div>
+          </div>
+
+          <!-- Puzzle Controllers (UUPC) -->
+          <div class="section-divider"></div>
+          <div class="card-header">
+            <h3>Puzzle Controllers (UUPC)</h3>
+            <button class="btn btn-ghost btn-sm" id="btnAddUupc">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Add Controller
+            </button>
+          </div>
+          <p class="field-hint">Add Ultimate Universal Puzzle Controllers by their network IP address.</p>
+          <div class="events-table-wrap">
+            <table class="events-table" id="uupcTable">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>IP Address</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="uupcBody"></tbody>
+            </table>
+            <div class="empty-state events-empty" id="uupcEmpty">No puzzle controllers</div>
+          </div>
+
+          <!-- Scheduled Events -->
+          <div class="section-divider"></div>
+          <div class="card-header">
+            <h3>Scheduled Events</h3>
+            <button class="btn btn-ghost btn-sm" id="btnAddEvent">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Add Event
+            </button>
+          </div>
+          <p class="field-hint">Events trigger automatically at a specific minute during the countdown.</p>
+          <div class="events-table-wrap">
+            <table class="events-table" id="eventsTable">
+              <thead>
+                <tr>
+                  <th>Minute</th>
+                  <th>Action</th>
+                  <th>Parameter</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="eventsBody"></tbody>
+            </table>
+            <div class="empty-state events-empty" id="eventsEmpty">No scheduled events</div>
+          </div>
+
           <div class="form-actions">
             <button class="btn btn-secondary" id="btnCancelSetup">Cancel</button>
             <button class="btn btn-primary" id="btnSaveRoom">Save Room</button>
@@ -146,6 +292,17 @@
           <div>
             <h2 id="controlRoomName">No Room Selected</h2>
             <p class="subtitle">Game Control Panel</p>
+          </div>
+        </div>
+
+        <!-- Live Preview -->
+        <div class="card preview-card">
+          <div class="card-header">
+            <h3>Live Preview</h3>
+            <button class="btn btn-ghost btn-sm" id="btnTogglePreview">Show</button>
+          </div>
+          <div class="preview-container" id="previewContainer" style="display:none">
+            <iframe id="previewFrame" src="about:blank" frameborder="0"></iframe>
           </div>
         </div>
 
@@ -206,10 +363,73 @@
               </button>
             </div>
             <div class="card-header" style="margin-top:16px">
+              <h3>Messages</h3>
+            </div>
+            <div class="actions-stack">
+              <button class="btn btn-secondary btn-block btn-sm" id="btnMsgGetReady">Get Ready!</button>
+              <button class="btn btn-secondary btn-block btn-sm" id="btnMsgGoodLuck">Good Luck!</button>
+              <button class="btn btn-secondary btn-block btn-sm" id="btnMsgDescription">Show Description</button>
+              <button class="btn btn-ghost btn-block btn-sm" id="btnMsgClear">Clear Message</button>
+            </div>
+            <div class="card-header" style="margin-top:16px">
               <h3>Quick Actions</h3>
             </div>
             <div id="quickActionsPanel" class="quick-actions"></div>
           </div>
+
+          <!-- Puzzle Controllers -->
+          <div class="card" style="grid-column: 1 / -1" id="uupcPanel">
+            <div class="card-header">
+              <h3>Puzzle Controllers</h3>
+              <span class="badge" id="uupcCount">0</span>
+            </div>
+            <div id="uupcStatusList" class="uupc-status-list">
+              <div class="empty-state" style="padding:16px;font-size:13px">No controllers configured for this room</div>
+            </div>
+          </div>
+
+          <!-- Music & Alert Tones -->
+          <div class="card" style="grid-column: 1 / -1">
+            <div class="card-header">
+              <h3>Background Music</h3>
+            </div>
+            <div class="music-controls">
+              <button class="btn btn-secondary btn-sm" id="btnMusicToggle">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                Play Music
+              </button>
+              <button class="btn btn-ghost btn-sm" id="btnMusicStop">Stop</button>
+            </div>
+            <div class="card-header" style="margin-top:16px">
+              <h3>Alert Tones</h3>
+            </div>
+            <div id="alertTonesPanel" class="alert-tones"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCORES VIEW -->
+      <section class="view" id="view-scores">
+        <div class="view-header">
+          <div>
+            <h2>Scoreboard</h2>
+            <p class="subtitle">Game history and results</p>
+          </div>
+        </div>
+        <div class="card">
+          <table class="scores-table" id="scoresTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Room</th>
+                <th>Result</th>
+                <th>Time Used</th>
+                <th>Hints Used</th>
+              </tr>
+            </thead>
+            <tbody id="scoresBody"></tbody>
+          </table>
+          <div class="empty-state" id="scoresEmpty">No games played yet</div>
         </div>
       </section>
 

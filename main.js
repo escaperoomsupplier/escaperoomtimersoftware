@@ -61,6 +61,63 @@ function setupIPC() {
   ipcMain.handle('rooms:get', (_, roomName) => roomManager.getRoom(roomName));
   ipcMain.handle('rooms:save', (_, roomData) => roomManager.saveRoom(roomData));
   ipcMain.handle('rooms:getHints', (_, roomName, language) => roomManager.getHints(roomName, language));
+  ipcMain.handle('rooms:getSounds', (_, roomName) => roomManager.getSounds(roomName));
+  ipcMain.handle('scores:save', (_, roomName, scoreData) => roomManager.saveScore(roomName, scoreData));
+  ipcMain.handle('scores:get', (_, roomName) => roomManager.getScores(roomName));
+  ipcMain.handle('scores:getAll', () => roomManager.getAllScores());
+
+  // UUPC API proxy (avoids CORS from renderer)
+  ipcMain.handle('uupc:getState', async (_, ip) => {
+    try {
+      const [machine, inputs, outputs] = await Promise.all([
+        fetch(`http://${ip}/machine/state`).then(r => r.json()),
+        fetch(`http://${ip}/input/state`).then(r => r.json()),
+        fetch(`http://${ip}/output/state`).then(r => r.json())
+      ]);
+      return { ok: true, machine, inputs, outputs };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('uupc:setMachineState', async (_, ip, value) => {
+    try {
+      const res = await fetch(`http://${ip}/machine/state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `value=${value}`
+      });
+      return { ok: res.ok };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('uupc:overrideInput', async (_, ip, port, value) => {
+    try {
+      const res = await fetch(`http://${ip}/input/overwrite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `${port}=${value}`
+      });
+      return { ok: res.ok };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('uupc:overrideOutput', async (_, ip, port, value) => {
+    try {
+      const res = await fetch(`http://${ip}/output/overwrite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `${port}=${value}`
+      });
+      return { ok: res.ok };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  });
 
   // Forward all timer/hint/display commands to Socket.IO
   const forwardEvents = [
@@ -69,6 +126,7 @@ function setupIPC() {
     'hint:send', 'hint:clear',
     'display:progress', 'display:bonusTime', 'display:message',
     'sound:play', 'video:play',
+    'music:play', 'music:stop',
     'config:update'
   ];
 

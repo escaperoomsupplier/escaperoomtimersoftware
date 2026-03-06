@@ -30,7 +30,8 @@ initTheme();
 const views = {
   rooms: document.getElementById('view-rooms'),
   setup: document.getElementById('view-setup'),
-  control: document.getElementById('view-control')
+  control: document.getElementById('view-control'),
+  scores: document.getElementById('view-scores')
 };
 
 const navItems = document.querySelectorAll('.nav-item[data-view]');
@@ -43,6 +44,9 @@ function showView(viewName) {
 
   const activeNav = document.querySelector(`.nav-item[data-view="${viewName}"]`);
   if (activeNav) activeNav.classList.add('active');
+
+  if (viewName === 'scores') loadScores();
+  if (viewName !== 'control') stopUupcPolling();
 }
 
 navItems.forEach(item => {
@@ -106,10 +110,14 @@ async function openRoom(roomName) {
   gameState = 'idle';
 
   hints = await window.api.getHints(roomName, currentRoom.defaultLanguage || 'English');
+  await loadAlertTones(roomName);
 
   document.getElementById('controlRoomName').textContent = currentRoom.name;
   updateTimerDisplay();
   updateHintsPanel();
+  renderQuickActionsPanel();
+  renderUupcPanel();
+  startUupcPolling();
   updateStatusIndicator();
 
   window.api.updateConfig({
@@ -117,9 +125,12 @@ async function openRoom(roomName) {
     duration: currentRoom.duration,
     maxHints: currentRoom.maxHints,
     countdownType: currentRoom.countdownType || 'S0',
+    countdownEffect: currentRoom.countdownEffect || '',
     successMessage: currentRoom.successMessage,
     failMessage: currentRoom.failMessage,
-    theme: currentRoom.theme
+    theme: currentRoom.theme,
+    bgMedia: currentRoom.bgMedia || '',
+    scheduledEvents: currentRoom.scheduledEvents || []
   });
 
   showView('control');
@@ -136,6 +147,17 @@ async function editRoom(roomName) {
   document.getElementById('setupSuccessMsg').value = room.successMessage || 'Congratulations! You escaped!';
   document.getElementById('setupFailMsg').value = room.failMessage || 'Time is up! You are trapped!';
   document.getElementById('setupCountdownType').value = room.countdownType || 'S0';
+  document.getElementById('setupCountdownEffect').value = room.countdownEffect || '';
+  setThemeFields(room.theme);
+  document.getElementById('setupDefaultLang').value = room.defaultLanguage || 'English';
+  document.getElementById('setupBgMedia').value = room.bgMedia || '';
+
+  scheduledEvents = (room.scheduledEvents || []).map(e => ({ ...e }));
+  renderEventsTable();
+  quickActions = (room.quickActions || []).map(q => ({ ...q }));
+  renderQuickActionsTable();
+  uupcControllers = (room.uupcControllers || []).map(c => ({ ...c }));
+  renderUupcTable();
 
   showView('setup');
 }
@@ -150,6 +172,16 @@ document.getElementById('btnNewRoom').addEventListener('click', () => {
   document.getElementById('setupSuccessMsg').value = 'Congratulations! You escaped!';
   document.getElementById('setupFailMsg').value = 'Time is up! You are trapped!';
   document.getElementById('setupCountdownType').value = 'S0';
+  document.getElementById('setupCountdownEffect').value = '';
+  setThemeFields({});
+  document.getElementById('setupDefaultLang').value = 'English';
+  document.getElementById('setupBgMedia').value = '';
+  scheduledEvents = [];
+  renderEventsTable();
+  quickActions = [];
+  renderQuickActionsTable();
+  uupcControllers = [];
+  renderUupcTable();
   showView('setup');
 });
 
@@ -164,7 +196,14 @@ document.getElementById('btnSaveRoom').addEventListener('click', async () => {
     description: document.getElementById('setupDescription').value,
     successMessage: document.getElementById('setupSuccessMsg').value,
     failMessage: document.getElementById('setupFailMsg').value,
-    countdownType: document.getElementById('setupCountdownType').value
+    countdownType: document.getElementById('setupCountdownType').value,
+    countdownEffect: document.getElementById('setupCountdownEffect').value,
+    theme: getThemeFields(),
+    defaultLanguage: document.getElementById('setupDefaultLang').value || 'English',
+    bgMedia: document.getElementById('setupBgMedia').value.trim(),
+    scheduledEvents: scheduledEvents.filter(e => e.param),
+    quickActions: quickActions.filter(q => q.label && q.param),
+    uupcControllers: uupcControllers.filter(c => c.ip)
   });
 
   await loadRooms();
@@ -172,6 +211,423 @@ document.getElementById('btnSaveRoom').addEventListener('click', async () => {
 });
 
 document.getElementById('btnCancelSetup').addEventListener('click', () => showView('rooms'));
+
+// ---- UUPC Editor (Room Setup) ----
+
+let uupcControllers = [];
+
+function renderUupcTable() {
+  const tbody = document.getElementById('uupcBody');
+  const empty = document.getElementById('uupcEmpty');
+
+  tbody.innerHTML = uupcControllers.map((c, i) => `
+    <tr data-index="${i}">
+      <td><input type="text" class="uupc-name-input" value="${c.name || ''}" placeholder="e.g. Main Puzzle"></td>
+      <td><input type="text" class="uupc-ip-input" value="${c.ip || ''}" placeholder="192.168.1.100"></td>
+      <td>
+        <button class="btn-remove-event" title="Remove">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+
+  empty.style.display = uupcControllers.length === 0 ? '' : 'none';
+
+  tbody.querySelectorAll('tr').forEach(row => {
+    const idx = parseInt(row.dataset.index, 10);
+    row.querySelector('.uupc-name-input').addEventListener('change', (e) => {
+      uupcControllers[idx].name = e.target.value;
+    });
+    row.querySelector('.uupc-ip-input').addEventListener('change', (e) => {
+      uupcControllers[idx].ip = e.target.value.trim();
+    });
+    row.querySelector('.btn-remove-event').addEventListener('click', () => {
+      uupcControllers.splice(idx, 1);
+      renderUupcTable();
+    });
+  });
+}
+
+document.getElementById('btnAddUupc').addEventListener('click', () => {
+  uupcControllers.push({ name: '', ip: '' });
+  renderUupcTable();
+});
+
+// ---- UUPC Status Panel (Control View) ----
+
+const MACHINE_STATES = {
+  0: { label: 'Armed', cls: 'uupc-state-armed' },
+  1: { label: 'In Progress', cls: 'uupc-state-inprogress' },
+  2: { label: 'Win', cls: 'uupc-state-win' },
+  3: { label: 'Learning', cls: 'uupc-state-learning' }
+};
+
+let uupcPollingInterval = null;
+let uupcStates = {};
+
+function renderUupcPanel() {
+  const controllers = currentRoom?.uupcControllers || [];
+  const list = document.getElementById('uupcStatusList');
+  const countBadge = document.getElementById('uupcCount');
+
+  countBadge.textContent = controllers.length;
+
+  if (controllers.length === 0) {
+    list.innerHTML = '<div class="empty-state" style="padding:16px;font-size:13px">No controllers configured for this room</div>';
+    stopUupcPolling();
+    return;
+  }
+
+  list.innerHTML = controllers.map((c, i) => {
+    const state = uupcStates[c.ip];
+    const online = state && state.ok;
+    const machineVal = online ? (state.machine?.value ?? state.machine ?? 0) : -1;
+    const machineInfo = MACHINE_STATES[machineVal] || { label: 'Offline', cls: 'uupc-state-offline' };
+
+    let inputsHtml = '';
+    let outputsHtml = '';
+
+    if (online && state.inputs) {
+      const inputs = Array.isArray(state.inputs) ? state.inputs : Object.values(state.inputs);
+      inputsHtml = `
+        <div class="uupc-ports-label">Inputs</div>
+        <div class="uupc-ports">${inputs.map((v, p) =>
+          `<div class="uupc-port ${v ? 'active' : ''}" title="Input ${p + 1}">${p + 1}</div>`
+        ).join('')}</div>`;
+    }
+
+    if (online && state.outputs) {
+      const outputs = Array.isArray(state.outputs) ? state.outputs : Object.values(state.outputs);
+      outputsHtml = `
+        <div class="uupc-ports-label">Outputs</div>
+        <div class="uupc-ports">${outputs.map((v, p) =>
+          `<div class="uupc-port ${v ? 'active' : ''}" title="Output ${p + 1}">${p + 1}</div>`
+        ).join('')}</div>`;
+    }
+
+    return `
+      <div class="uupc-device ${online ? 'uupc-online' : 'uupc-offline'}" data-uupc-index="${i}">
+        <div class="uupc-device-header">
+          <div class="uupc-device-name">
+            <span class="uupc-dot"></span>
+            ${c.name || 'Controller ' + (i + 1)}
+          </div>
+          <span class="uupc-state-badge ${machineInfo.cls}">${machineInfo.label}</span>
+        </div>
+        <div class="uupc-device-ip">${c.ip}</div>
+        ${inputsHtml}
+        ${outputsHtml}
+        <div class="uupc-controls">
+          <button class="btn btn-success btn-sm uupc-btn-win" data-ip="${c.ip}" title="Set puzzle to Win state">Win</button>
+          <button class="btn btn-secondary btn-sm uupc-btn-arm" data-ip="${c.ip}" title="Arm (reset) puzzle">Arm</button>
+          <button class="btn btn-warning btn-sm uupc-btn-progress" data-ip="${c.ip}" title="Set to In Progress">Start</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Bind control buttons
+  list.querySelectorAll('.uupc-btn-win').forEach(btn => {
+    btn.addEventListener('click', () => uupcSetState(btn.dataset.ip, 2));
+  });
+  list.querySelectorAll('.uupc-btn-arm').forEach(btn => {
+    btn.addEventListener('click', () => uupcSetState(btn.dataset.ip, 0));
+  });
+  list.querySelectorAll('.uupc-btn-progress').forEach(btn => {
+    btn.addEventListener('click', () => uupcSetState(btn.dataset.ip, 1));
+  });
+}
+
+async function uupcSetState(ip, value) {
+  await window.api.uupcSetMachineState(ip, value);
+  // Immediately poll to update UI
+  await pollUupcState(ip);
+  renderUupcPanel();
+}
+
+async function pollUupcState(ip) {
+  const result = await window.api.uupcGetState(ip);
+  uupcStates[ip] = result;
+}
+
+async function pollAllUupc() {
+  const controllers = currentRoom?.uupcControllers || [];
+  if (controllers.length === 0) return;
+  await Promise.all(controllers.map(c => pollUupcState(c.ip)));
+  renderUupcPanel();
+}
+
+function startUupcPolling() {
+  stopUupcPolling();
+  pollAllUupc();
+  uupcPollingInterval = setInterval(pollAllUupc, 2000);
+}
+
+function stopUupcPolling() {
+  if (uupcPollingInterval) {
+    clearInterval(uupcPollingInterval);
+    uupcPollingInterval = null;
+  }
+}
+
+// ---- Color Picker Sync ----
+
+function syncColorPair(colorId, textId) {
+  const color = document.getElementById(colorId);
+  const text = document.getElementById(textId);
+  color.addEventListener('input', () => { text.value = color.value; });
+  text.addEventListener('change', () => {
+    if (/^#[0-9a-fA-F]{6}$/.test(text.value)) color.value = text.value;
+  });
+}
+
+syncColorPair('setupBgColor', 'setupBgColorText');
+syncColorPair('setupTimerColor', 'setupTimerColorText');
+syncColorPair('setupHintColor', 'setupHintColorText');
+
+function setThemeFields(theme) {
+  const t = theme || {};
+  document.getElementById('setupBgColor').value = t.backgroundColor || '#000000';
+  document.getElementById('setupBgColorText').value = t.backgroundColor || '#000000';
+  document.getElementById('setupTimerColor').value = t.timerColor || '#00ffcc';
+  document.getElementById('setupTimerColorText').value = t.timerColor || '#00ffcc';
+  document.getElementById('setupHintColor').value = t.hintColor || '#ff9900';
+  document.getElementById('setupHintColorText').value = t.hintColor || '#ff9900';
+  document.getElementById('setupFont').value = t.fontFamily || 'Orbitron';
+}
+
+function getThemeFields() {
+  return {
+    backgroundColor: document.getElementById('setupBgColor').value,
+    timerColor: document.getElementById('setupTimerColor').value,
+    hintColor: document.getElementById('setupHintColor').value,
+    fontFamily: document.getElementById('setupFont').value
+  };
+}
+
+// ---- Scheduled Events Editor ----
+
+let scheduledEvents = [];
+
+function renderEventsTable() {
+  const tbody = document.getElementById('eventsBody');
+  const empty = document.getElementById('eventsEmpty');
+
+  tbody.innerHTML = scheduledEvents.map((evt, i) => `
+    <tr data-index="${i}">
+      <td><input type="number" class="evt-minute" value="${evt.minute}" min="1" max="999" placeholder="Min"></td>
+      <td>
+        <select class="evt-action">
+          <option value="playSound" ${evt.action === 'playSound' ? 'selected' : ''}>Play Sound</option>
+          <option value="displayText" ${evt.action === 'displayText' ? 'selected' : ''}>Display Text</option>
+          <option value="playVideo" ${evt.action === 'playVideo' ? 'selected' : ''}>Play Video</option>
+        </select>
+      </td>
+      <td><input type="text" class="evt-param" value="${evt.param || ''}" placeholder="${evt.action === 'displayText' ? 'Message text...' : 'filename.mp3'}"></td>
+      <td>
+        <button class="btn-remove-event" title="Remove">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+
+  empty.style.display = scheduledEvents.length === 0 ? '' : 'none';
+
+  // Bind change listeners
+  tbody.querySelectorAll('tr').forEach(row => {
+    const idx = parseInt(row.dataset.index, 10);
+    row.querySelector('.evt-minute').addEventListener('change', (e) => {
+      scheduledEvents[idx].minute = parseInt(e.target.value, 10) || 1;
+    });
+    row.querySelector('.evt-action').addEventListener('change', (e) => {
+      scheduledEvents[idx].action = e.target.value;
+      const paramInput = row.querySelector('.evt-param');
+      paramInput.placeholder = e.target.value === 'displayText' ? 'Message text...' : 'filename.mp3';
+    });
+    row.querySelector('.evt-param').addEventListener('change', (e) => {
+      scheduledEvents[idx].param = e.target.value;
+    });
+    row.querySelector('.btn-remove-event').addEventListener('click', () => {
+      scheduledEvents.splice(idx, 1);
+      renderEventsTable();
+    });
+  });
+}
+
+document.getElementById('btnAddEvent').addEventListener('click', () => {
+  scheduledEvents.push({ minute: 30, action: 'displayText', param: '' });
+  renderEventsTable();
+});
+
+// ---- Quick Actions Editor ----
+
+let quickActions = [];
+
+function renderQuickActionsTable() {
+  const tbody = document.getElementById('quickActionsBody');
+  const empty = document.getElementById('quickActionsEmpty');
+
+  tbody.innerHTML = quickActions.map((qa, i) => `
+    <tr data-index="${i}">
+      <td><input type="text" class="qa-label" value="${qa.label || ''}" placeholder="Button label"></td>
+      <td>
+        <select class="qa-action">
+          <option value="playSound" ${qa.action === 'playSound' ? 'selected' : ''}>Play Sound</option>
+          <option value="displayText" ${qa.action === 'displayText' ? 'selected' : ''}>Display Text</option>
+          <option value="playVideo" ${qa.action === 'playVideo' ? 'selected' : ''}>Play Video</option>
+          <option value="addTime" ${qa.action === 'addTime' ? 'selected' : ''}>Add Time (sec)</option>
+        </select>
+      </td>
+      <td><input type="text" class="qa-param" value="${qa.param || ''}" placeholder="${qa.action === 'addTime' ? '60' : qa.action === 'displayText' ? 'Message...' : 'filename'}"></td>
+      <td>
+        <button class="btn-remove-event" title="Remove">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+
+  empty.style.display = quickActions.length === 0 ? '' : 'none';
+
+  tbody.querySelectorAll('tr').forEach(row => {
+    const idx = parseInt(row.dataset.index, 10);
+    row.querySelector('.qa-label').addEventListener('change', (e) => {
+      quickActions[idx].label = e.target.value;
+    });
+    row.querySelector('.qa-action').addEventListener('change', (e) => {
+      quickActions[idx].action = e.target.value;
+    });
+    row.querySelector('.qa-param').addEventListener('change', (e) => {
+      quickActions[idx].param = e.target.value;
+    });
+    row.querySelector('.btn-remove-event').addEventListener('click', () => {
+      quickActions.splice(idx, 1);
+      renderQuickActionsTable();
+    });
+  });
+}
+
+document.getElementById('btnAddQuickAction').addEventListener('click', () => {
+  quickActions.push({ label: '', action: 'playSound', param: '' });
+  renderQuickActionsTable();
+});
+
+function renderQuickActionsPanel() {
+  const panel = document.getElementById('quickActionsPanel');
+  const actions = currentRoom?.quickActions || [];
+
+  if (actions.length === 0) {
+    panel.innerHTML = '<span class="quick-actions-empty">No quick actions configured</span>';
+    return;
+  }
+
+  panel.innerHTML = actions.map((qa, i) => `
+    <button class="qa-btn" data-qa-index="${i}">${qa.label || qa.action}</button>
+  `).join('');
+
+  panel.querySelectorAll('.qa-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const qa = actions[parseInt(btn.dataset.qaIndex, 10)];
+      executeQuickAction(qa);
+    });
+  });
+}
+
+function executeQuickAction(qa) {
+  switch (qa.action) {
+    case 'playSound':
+      window.api.playSound({ filename: qa.param });
+      break;
+    case 'displayText':
+      window.api.showMessage({ text: qa.param, duration: 5000 });
+      break;
+    case 'playVideo':
+      window.api.playVideo({ filename: qa.param });
+      break;
+    case 'addTime': {
+      const sec = parseInt(qa.param, 10) || 0;
+      timerSeconds = Math.max(0, timerSeconds + sec);
+      updateTimerDisplay();
+      window.api.timerAddTime({ seconds: sec });
+      if (sec > 0) window.api.showBonusTime({ label: qa.label || 'BONUS TIME' });
+      break;
+    }
+  }
+}
+
+// ---- Alert Tones ----
+
+let availableSounds = [];
+
+async function loadAlertTones(roomName) {
+  availableSounds = await window.api.getSounds(roomName);
+  renderAlertTones();
+}
+
+function renderAlertTones() {
+  const panel = document.getElementById('alertTonesPanel');
+
+  if (availableSounds.length === 0) {
+    panel.innerHTML = '<span class="alert-tones-empty">No sound files found. Add .mp3/.wav/.ogg files to assets/sounds/ or the room\'s sounds/ folder.</span>';
+    return;
+  }
+
+  panel.innerHTML = availableSounds.map((s, i) => `
+    <button class="tone-btn" data-tone-index="${i}">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>
+      ${s.name}
+    </button>
+  `).join('');
+
+  panel.querySelectorAll('.tone-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sound = availableSounds[parseInt(btn.dataset.toneIndex, 10)];
+      window.api.playSound({ filename: sound.filename, path: sound.path });
+    });
+  });
+}
+
+// ---- Background Music ----
+
+let musicPlaying = false;
+
+document.getElementById('btnMusicToggle').addEventListener('click', () => {
+  if (!currentRoom) return;
+  musicPlaying = !musicPlaying;
+  if (musicPlaying) {
+    window.api.musicPlay({ roomName: currentRoom.name });
+    document.getElementById('btnMusicToggle').textContent = 'Playing...';
+  } else {
+    window.api.musicStop();
+    document.getElementById('btnMusicToggle').textContent = 'Play Music';
+  }
+});
+
+document.getElementById('btnMusicStop').addEventListener('click', () => {
+  window.api.musicStop();
+  musicPlaying = false;
+  document.getElementById('btnMusicToggle').textContent = 'Play Music';
+});
+
+// ---- Live Preview ----
+
+let previewVisible = false;
+
+document.getElementById('btnTogglePreview').addEventListener('click', () => {
+  previewVisible = !previewVisible;
+  const container = document.getElementById('previewContainer');
+  const btn = document.getElementById('btnTogglePreview');
+  const frame = document.getElementById('previewFrame');
+
+  container.style.display = previewVisible ? '' : 'none';
+  btn.textContent = previewVisible ? 'Hide' : 'Show';
+
+  if (previewVisible && frame.src === 'about:blank') {
+    frame.src = window.api.getTimerURL();
+  }
+});
 
 // ---- Timer Controls ----
 
@@ -350,6 +806,26 @@ document.getElementById('customHintText').addEventListener('keydown', (e) => {
 
 document.getElementById('btnClearHint').addEventListener('click', () => window.api.clearHint());
 
+// ---- Special Messages ----
+
+document.getElementById('btnMsgGetReady').addEventListener('click', () => {
+  window.api.showMessage({ text: 'Get Ready!', duration: 5000 });
+});
+
+document.getElementById('btnMsgGoodLuck').addEventListener('click', () => {
+  window.api.showMessage({ text: 'Good Luck!', duration: 5000 });
+});
+
+document.getElementById('btnMsgDescription').addEventListener('click', () => {
+  if (currentRoom?.description) {
+    window.api.showMessage({ text: currentRoom.description, duration: 10000 });
+  }
+});
+
+document.getElementById('btnMsgClear').addEventListener('click', () => {
+  window.api.showMessage({ text: '', duration: 1 });
+});
+
 // ---- End Game ----
 
 function endGame(type) {
@@ -361,6 +837,18 @@ function endGame(type) {
     : (currentRoom?.failMessage || 'Time is up! You are trapped!');
 
   window.api.timerEnd({ type, message });
+
+  // Save score
+  if (currentRoom) {
+    const totalSec = currentRoom.duration * 60;
+    const elapsed = totalSec - timerSeconds;
+    window.api.saveScore(currentRoom.name, {
+      result: type,
+      timeUsed: elapsed,
+      totalTime: totalSec,
+      hintsUsed: currentRoom.maxHints - hintsRemaining
+    });
+  }
 
   document.getElementById('btnStart').innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start`;
   document.getElementById('btnStart').disabled = false;
@@ -409,6 +897,42 @@ window.api.onTimerDisplayDisconnected(() => {
 document.getElementById('btnOpenTimer').addEventListener('click', () => {
   window.open(window.api.getTimerURL(), '_blank');
 });
+
+// ---- Scoreboard ----
+
+function formatDuration(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+async function loadScores() {
+  const scores = await window.api.getAllScores();
+  const tbody = document.getElementById('scoresBody');
+  const empty = document.getElementById('scoresEmpty');
+
+  if (scores.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+
+  empty.style.display = 'none';
+  tbody.innerHTML = scores.map(s => {
+    const date = new Date(s.timestamp);
+    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const resultClass = s.result === 'success' ? 'score-success' : 'score-fail';
+    return `
+      <tr>
+        <td>${dateStr}</td>
+        <td>${s.roomName}</td>
+        <td><span class="score-badge ${resultClass}">${s.result === 'success' ? 'Escaped' : 'Failed'}</span></td>
+        <td>${formatDuration(s.timeUsed)} / ${formatDuration(s.totalTime)}</td>
+        <td>${s.hintsUsed}</td>
+      </tr>
+    `;
+  }).join('');
+}
 
 // ---- Init ----
 
