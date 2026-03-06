@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timer Display — Press F11 for Fullscreen</title>
+  <link rel="stylesheet" href="timer.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+
+  <div class="display-container">
+
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <div class="top-bar-pill" id="roomTitle">ESCAPE ROOM</div>
+      <div class="top-bar-status" id="connectionStatus">
+        <span class="status-dot"></span>
+        Connecting...
+      </div>
+    </div>
+
+    <!-- Timer -->
+    <div class="timer-wrapper">
+      <div class="timer-label" id="timerLabel">Remaining Time</div>
+      <div class="timer-digits" id="timerDigits">60:00</div>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="info-row">
+      <div class="info-card" id="hintsCard">
+        <div class="info-card-label">Hints Available</div>
+        <div class="info-card-value" id="hintsValue">5</div>
+      </div>
+      <div class="info-card" id="progressCard" style="display:none">
+        <div class="info-card-label">Progress</div>
+        <div class="info-card-value" id="progressValue">0%</div>
+      </div>
+    </div>
+
+    <!-- Hint Display -->
+    <div class="hint-area" id="hintArea">
+      <div class="hint-content" id="hintContent"></div>
+    </div>
+
+  </div>
+
+  <!-- Message Overlay -->
+  <div class="overlay" id="messageOverlay">
+    <div class="overlay-content">
+      <div class="overlay-icon" id="overlayIcon"></div>
+      <div class="overlay-text" id="messageText"></div>
+    </div>
+  </div>
+
+  <script src="timer.js"></script>
+</body>
+</html>

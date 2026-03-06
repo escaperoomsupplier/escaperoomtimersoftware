@@ -1,0 +1,13 @@
+{
+  "successMessage": "Congratulations! You escaped!",
+  "failMessage": "Time is up! You are trapped!",
+  "theme": {
+    "backgroundColor": "#000000",
+    "timerColor": "#00ffcc",
+    "hintColor": "#ff9900",
+    "fontFamily": "Orbitron"
+  },
+  "countdownType": "S0",
+  "scheduledEvents": [],
+  "quickActions": []
+}

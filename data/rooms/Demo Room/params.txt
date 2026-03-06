@@ -1,0 +1,7 @@
+60
+5
+5
+5
+5
+logo.png
+Welcome to the Demo Room! Solve the puzzles and escape before time runs out.

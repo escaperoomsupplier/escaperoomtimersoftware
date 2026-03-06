@@ -1,0 +1,1 @@
+The code on the navigation console reads backwards. Try <strong>7-4-2-9</strong>.
