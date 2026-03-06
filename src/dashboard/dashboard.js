@@ -89,6 +89,7 @@ async function loadRooms() {
       <div class="room-actions">
         <button class="btn btn-primary btn-sm btn-open-room" data-room="${room.name}">Open Room</button>
         <button class="btn btn-ghost btn-sm btn-edit-room" data-room="${room.name}">Edit</button>
+        <button class="btn btn-ghost btn-sm btn-delete-room" data-room="${room.name}" style="color:var(--danger)">Delete</button>
       </div>
     </div>
   `).join('');
@@ -98,6 +99,14 @@ async function loadRooms() {
   });
   grid.querySelectorAll('.btn-edit-room').forEach(btn => {
     btn.addEventListener('click', () => editRoom(btn.dataset.room));
+  });
+  grid.querySelectorAll('.btn-delete-room').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const name = btn.dataset.room;
+      if (!confirm(`Delete room "${name}"? This cannot be undone.`)) return;
+      await window.api.deleteRoom(name);
+      await loadRooms();
+    });
   });
 }
 
@@ -187,12 +196,26 @@ document.getElementById('btnNewRoom').addEventListener('click', () => {
 
 document.getElementById('btnSaveRoom').addEventListener('click', async () => {
   const name = document.getElementById('setupName').value.trim();
-  if (!name) return;
+  const duration = parseInt(document.getElementById('setupDuration').value, 10);
+  const maxHints = parseInt(document.getElementById('setupMaxHints').value, 10);
+
+  // Validation
+  const nameEl = document.getElementById('setupName');
+  const durEl = document.getElementById('setupDuration');
+  const hintsEl = document.getElementById('setupMaxHints');
+
+  [nameEl, durEl, hintsEl].forEach(el => el.style.borderColor = '');
+
+  let valid = true;
+  if (!name) { nameEl.style.borderColor = 'var(--danger)'; nameEl.focus(); valid = false; }
+  if (!duration || duration < 1 || duration > 999) { durEl.style.borderColor = 'var(--danger)'; if (valid) durEl.focus(); valid = false; }
+  if (isNaN(maxHints) || maxHints < 0 || maxHints > 99) { hintsEl.style.borderColor = 'var(--danger)'; if (valid) hintsEl.focus(); valid = false; }
+  if (!valid) return;
 
   await window.api.saveRoom({
     name,
-    duration: parseInt(document.getElementById('setupDuration').value, 10),
-    maxHints: parseInt(document.getElementById('setupMaxHints').value, 10),
+    duration,
+    maxHints,
     description: document.getElementById('setupDescription').value,
     successMessage: document.getElementById('setupSuccessMsg').value,
     failMessage: document.getElementById('setupFailMsg').value,
@@ -898,7 +921,21 @@ document.getElementById('btnOpenTimer').addEventListener('click', () => {
   window.open(window.api.getTimerURL(), '_blank');
 });
 
+// Show network URL tooltip on hover
+(function() {
+  const btn = document.getElementById('btnOpenTimer');
+  const netUrl = window.api.getNetworkTimerURL();
+  if (netUrl && !netUrl.includes('localhost')) {
+    btn.title = 'Network: ' + netUrl;
+  }
+})();
+
 // ---- Scoreboard ----
+
+let allScores = [];
+let scoreSortKey = 'timestamp';
+let scoreSortAsc = false;
+let scoreFilterRoom = '';
 
 function formatDuration(seconds) {
   const m = Math.floor(seconds / 60);
@@ -907,18 +944,65 @@ function formatDuration(seconds) {
 }
 
 async function loadScores() {
-  const scores = await window.api.getAllScores();
+  allScores = await window.api.getAllScores();
+  renderScoreFilter();
+  renderScores();
+}
+
+function renderScoreFilter() {
+  const rooms = [...new Set(allScores.map(s => s.roomName))].sort();
+  let filterEl = document.getElementById('scoreRoomFilter');
+  if (!filterEl) {
+    const header = document.querySelector('#view-scores .view-header');
+    const wrap = document.createElement('div');
+    wrap.style.display = 'flex';
+    wrap.style.gap = '8px';
+    wrap.style.alignItems = 'center';
+    wrap.innerHTML = `<select id="scoreRoomFilter" class="btn btn-ghost btn-sm" style="padding:6px 12px;font-family:inherit;cursor:pointer"></select>`;
+    header.appendChild(wrap);
+    filterEl = document.getElementById('scoreRoomFilter');
+    filterEl.addEventListener('change', () => {
+      scoreFilterRoom = filterEl.value;
+      renderScores();
+    });
+  }
+  filterEl.innerHTML = `<option value="">All Rooms</option>` + rooms.map(r => `<option value="${r}" ${r === scoreFilterRoom ? 'selected' : ''}>${r}</option>`).join('');
+}
+
+function sortScores(scores) {
+  const sorted = [...scores];
+  sorted.sort((a, b) => {
+    let va, vb;
+    switch (scoreSortKey) {
+      case 'timestamp': va = new Date(a.timestamp); vb = new Date(b.timestamp); break;
+      case 'roomName': va = a.roomName.toLowerCase(); vb = b.roomName.toLowerCase(); break;
+      case 'result': va = a.result; vb = b.result; break;
+      case 'timeUsed': va = a.timeUsed; vb = b.timeUsed; break;
+      case 'hintsUsed': va = a.hintsUsed; vb = b.hintsUsed; break;
+      default: va = a.timestamp; vb = b.timestamp;
+    }
+    if (va < vb) return scoreSortAsc ? -1 : 1;
+    if (va > vb) return scoreSortAsc ? 1 : -1;
+    return 0;
+  });
+  return sorted;
+}
+
+function renderScores() {
   const tbody = document.getElementById('scoresBody');
   const empty = document.getElementById('scoresEmpty');
 
-  if (scores.length === 0) {
+  let filtered = scoreFilterRoom ? allScores.filter(s => s.roomName === scoreFilterRoom) : allScores;
+  filtered = sortScores(filtered);
+
+  if (filtered.length === 0) {
     tbody.innerHTML = '';
     empty.style.display = '';
     return;
   }
 
   empty.style.display = 'none';
-  tbody.innerHTML = scores.map(s => {
+  tbody.innerHTML = filtered.map(s => {
     const date = new Date(s.timestamp);
     const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const resultClass = s.result === 'success' ? 'score-success' : 'score-fail';
@@ -932,7 +1016,28 @@ async function loadScores() {
       </tr>
     `;
   }).join('');
+
+  // Update sort indicators
+  document.querySelectorAll('#scoresTable th[data-sort]').forEach(th => {
+    th.classList.toggle('sorted', th.dataset.sort === scoreSortKey);
+    th.classList.toggle('asc', th.dataset.sort === scoreSortKey && scoreSortAsc);
+  });
 }
+
+// ---- Score Sort Handlers ----
+
+document.querySelectorAll('#scoresTable th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (scoreSortKey === key) {
+      scoreSortAsc = !scoreSortAsc;
+    } else {
+      scoreSortKey = key;
+      scoreSortAsc = key === 'roomName';
+    }
+    renderScores();
+  });
+});
 
 // ---- Init ----
 

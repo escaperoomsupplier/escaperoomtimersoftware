@@ -114,7 +114,7 @@ function executeScheduledEvent(evt) {
       setTimeout(hideOverlay, 5000);
       break;
     case 'playVideo':
-      hintContent.innerHTML = `<video src="/assets/sounds/${evt.param}" autoplay></video>`;
+      hintContent.innerHTML = `<video src="/assets/videos/${evt.param}" autoplay></video>`;
       hintContent.classList.add('visible');
       const video = hintContent.querySelector('video');
       if (video) video.onended = () => clearHintDisplay();
@@ -350,7 +350,7 @@ socket.on('music:stop', () => {
 });
 
 socket.on('video:play', (data) => {
-  hintContent.innerHTML = `<video src="/assets/sounds/${data.filename}" autoplay></video>`;
+  hintContent.innerHTML = `<video src="/assets/videos/${data.filename}" autoplay></video>`;
   hintContent.classList.add('visible');
   const video = hintContent.querySelector('video');
   if (video) video.onended = () => clearHintDisplay();

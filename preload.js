@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('api', {
   saveRoom: (data) => ipcRenderer.invoke('rooms:save', data),
   getHints: (roomName, language) => ipcRenderer.invoke('rooms:getHints', roomName, language),
   getSounds: (roomName) => ipcRenderer.invoke('rooms:getSounds', roomName),
+  deleteRoom: (name) => ipcRenderer.invoke('rooms:delete', name),
   saveScore: (roomName, data) => ipcRenderer.invoke('scores:save', roomName, data),
   getScores: (roomName) => ipcRenderer.invoke('scores:get', roomName),
   getAllScores: () => ipcRenderer.invoke('scores:getAll'),
@@ -46,5 +47,17 @@ contextBridge.exposeInMainWorld('api', {
   onTimerDisplayDisconnected: (cb) => ipcRenderer.on('timer-display:disconnected', () => cb()),
 
   // Server info
-  getTimerURL: () => `http://localhost:3333/room`
+  getTimerURL: () => `http://localhost:3333/room`,
+  getNetworkTimerURL: () => {
+    const os = require('os');
+    const nets = os.networkInterfaces();
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name]) {
+        if (net.family === 'IPv4' && !net.internal) {
+          return `http://${net.address}:3333/room`;
+        }
+      }
+    }
+    return `http://localhost:3333/room`;
+  }
 });

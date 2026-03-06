@@ -206,6 +206,13 @@ class RoomManager {
     return all;
   }
 
+  deleteRoom(roomName) {
+    const roomPath = path.join(this.roomsDir, roomName);
+    if (!fs.existsSync(roomPath)) return { success: false, error: 'Room not found' };
+    fs.rmSync(roomPath, { recursive: true, force: true });
+    return { success: true };
+  }
+
   getSounds(roomName) {
     const sounds = [];
 

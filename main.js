@@ -68,6 +68,7 @@ function setupIPC() {
   ipcMain.handle('rooms:save', (_, roomData) => roomManager.saveRoom(roomData));
   ipcMain.handle('rooms:getHints', (_, roomName, language) => roomManager.getHints(roomName, language));
   ipcMain.handle('rooms:getSounds', (_, roomName) => roomManager.getSounds(roomName));
+  ipcMain.handle('rooms:delete', (_, roomName) => roomManager.deleteRoom(roomName));
   ipcMain.handle('scores:save', (_, roomName, scoreData) => roomManager.saveScore(roomName, scoreData));
   ipcMain.handle('scores:get', (_, roomName) => roomManager.getScores(roomName));
   ipcMain.handle('scores:getAll', () => roomManager.getAllScores());
